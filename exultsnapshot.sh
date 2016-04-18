@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #functions
-. ./1functions.sh
+. ./functions.sh
 
 headermain EXULT
 
@@ -19,10 +19,10 @@ flags
 gcc
 autogen
 {
-./configure $CONF_OPT --with-macosx-static-lib-path=/opt/$ARCH/lib || error $ARCH configure
-make clean > /dev/null
-make -j9 -s > /dev/null || error $ARCH make
-stripp $target
+	./configure $CONF_OPT --with-macosx-static-lib-path=/opt/$ARCH/lib || error $ARCH configure
+	make clean > /dev/null
+	make -j9 -s > /dev/null || error $ARCH make
+	stripp $target
 } 2>&1 | teelog ; pipestatus || return
 make distclean > /dev/null
 
@@ -35,10 +35,10 @@ flags
 gcc oldgcc
 autogen
 {
-./configure $CONF_OPT --with-macosx-static-lib-path=/opt/$ARCH/lib --disable-data --host=powerpc-apple-darwin || error $ARCH configure
-make clean  > /dev/null
-make -j9 -s > /dev/null || error $ARCH make
-stripp $target
+	./configure $CONF_OPT --with-macosx-static-lib-path=/opt/$ARCH/lib --disable-data --host=powerpc-apple-darwin || error $ARCH configure
+	make clean  > /dev/null
+	make -j9 -s > /dev/null || error $ARCH make
+	stripp $target
 } 2>&1 | teelog ; pipestatus || return
 make distclean  > /dev/null
 
@@ -51,29 +51,30 @@ flags
 gcc arch
 autogen
 {
-./configure $CONF_OPT --with-macosx-static-lib-path=/opt/$ARCH/lib --with-macosx-code-signature || error $ARCH configure
-make clean  > /dev/null
-make -j9 -s > /dev/null || error $ARCH make
-stripp $target
+	./configure $CONF_OPT --with-macosx-static-lib-path=/opt/$ARCH/lib --with-macosx-code-signature || error $ARCH configure
+	make clean  > /dev/null
+	make -j9 -s > /dev/null || error $ARCH make
+	stripp $target
 } 2>&1 | teelog ; pipestatus || return
 
 {
-#make fat exult binary
-lipo -create -arch x86_64 exult_x86_64 -arch i386 exult_i386 -arch ppc exult_ppc -output exult || error lipo
+	#make fat exult binary
+	lipo -create -arch x86_64 exult_x86_64 -arch i386 exult_i386 -arch ppc exult_ppc -output exult || error lipo
 
-#bundle
-make -s bundle || error bundle
+	#bundle
+	make -s bundle || error bundle
 
-#image, upload, clean
-export REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"
-make -s osxdmg || error disk image
+	#image, upload
+	export REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"
+	make -s osxdmg || error disk image
 
-cp -p Exult-snapshot.dmg ~/Snapshots/exult/"`date +%y-%m-%d-%H%M` Exult$REVISION.dmg"
-mv Exult-snapshot.dmg ~/Snapshots/exult/
-cp -R Exult.app /Applications/
-scp -p -i ~/.ssh/id_dsa ~/Snapshots/exult/Exult-snapshot.dmg $USER,exult@web.sourceforge.net:htdocs/snapshots/Exult-snapshot.dmg || error Upload
+	cp -p Exult-snapshot.dmg ~/Snapshots/exult/"`date +%y-%m-%d-%H%M` Exult$REVISION.dmg"
+	mv Exult-snapshot.dmg ~/Snapshots/exult/
+	cp -R Exult.app /Applications/
+	scp -p -i ~/.ssh/id_dsa ~/Snapshots/exult/Exult-snapshot.dmg $USER,exult@web.sourceforge.net:htdocs/snapshots/Exult-snapshot.dmg || error Upload
 } 2>&1 | teelog ; pipestatus || return
 
+#clean
 make distclean  > /dev/null
 
 #-------------SDL2-------------
@@ -86,23 +87,25 @@ flags
 gcc
 autogen
 {
-./configure $CONF_OPT -q --with-macosx-static-lib-path=/opt/$ARCH/lib --with-macosx-code-signature --with-sdl=sdl2 || error SDL2 configure
-make clean > /dev/null
-make -j9 -s > /dev/null || error SDL2 make
-strip exult -o exult || error SDL2 strip
+	./configure $CONF_OPT -q --with-macosx-static-lib-path=/opt/$ARCH/lib --with-macosx-code-signature --with-sdl=sdl2 || error SDL2 configure
+	make clean > /dev/null
+	make -j9 -s > /dev/null || error SDL2 make
+	strip exult -o exult || error SDL2 strip
 
-#bundle SDL2
-make -s bundle || error SDL2 bundle
+	#bundle SDL2
+	make -s bundle || error SDL2 bundle
 
-#image, clean SDL"2
-export REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"
-make -s osxdmg || error SDL2 dmg
+	#image SDL2
+	export REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"
+	make -s osxdmg || error SDL2 dmg
 } 2>&1 | teelog ; pipestatus || return
 
 cp -p Exult-snapshot.dmg ~/Snapshots/exult/"`date +%y-%m-%d-%H%M` Exult-SDL2$REVISION.dmg"
 mv Exult-snapshot.dmg ~/Snapshots/exult/Exult-SDL2-snapshot.dmg
 mv Exult.app Exult-SDL2.app
 cp -R Exult-SDL2.app /Applications/
+
+#clean
 rm -R Exult-SDL2.app
 make distclean  > /dev/null
 #-------------SDL2-------------
