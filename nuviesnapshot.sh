@@ -2,10 +2,10 @@
 #functions
 . ./functions.sh
 
-header NUVIE
+headermain NUVIE
 
 cd ~/code/snapshots/nuvie
-/usr/bin/git pull --rebase=true 2> >(teelog >&2) || error GIT pull
+/usr/bin/git pull --rebase=true 2> >(teelog >&2) || error Git pull
 
 #get revision for labeling the dmg later
 export REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"
@@ -23,13 +23,9 @@ SDK=10.11
 DEPLOYMENT=10.7
 flags
 gcc
+CONF_ARGS="--with-macosx-static-lib-path=/opt/$ARCH/lib"
 autogen
-{
-	./configure $CONF_OPT --with-macosx-static-lib-path=/opt/$ARCH/lib || error $ARCH configure
-	make clean > /dev/null
-	make -j9 -s  > /dev/null || error $ARCH make
-	stripp $target
-} 2>&1 | teelog ; pipestatus || return
+build 2>&1 | teelog ; pipestatus || return
 make distclean > /dev/null
 
 #ppc
@@ -40,12 +36,9 @@ DEPLOYMENT=10.4
 flags
 gcc oldgcc
 autogen
-{
-	./configure $CONF_OPT --with-macosx-static-lib-path=/opt/$ARCH/lib --host=powerpc-apple-darwin || error $ARCH configure
-	make clean > /dev/null
-	make -j9 -s > /dev/null || error $ARCH make
-	stripp $target
-} 2>&1 | teelog ; pipestatus || return
+CONF_ARGS="--with-macosx-static-lib-path=/opt/$ARCH/lib"
+autogen
+build 2>&1 | teelog -a ; pipestatus || return
 make distclean > /dev/null
 
 #i386
@@ -56,13 +49,12 @@ DEPLOYMENT=10.5
 flags
 gcc arch
 autogen
-{
-	./configure $CONF_OPT --with-macosx-static-lib-path=/opt/$ARCH/lib --with-macosx-code-signature || error $ARCH configure
-	make clean > /dev/null
-	make -j9 -s > /dev/null || error $ARCH make
-	stripp $target
-} 2>&1 | teelog ; pipestatus || return
+CONF_ARGS="--with-macosx-code-signature --with-macosx-static-lib-path=/opt/$ARCH/lib"
+autogen
+build 2>&1 | teelog -a ; pipestatus || return
 
+#deploy
+deploy
 {
 	#make fat universal binary
 	lipo -create -arch x86_64 nuvie_x86_64 -arch i386 nuvie_i386 -arch ppc nuvie_ppc -output nuvie || error lipo
@@ -79,7 +71,7 @@ autogen
 	scp -p -i ~/.ssh/id_dsa ~/Snapshots/nuvie/Nuvie-snapshot.dmg $USER,nuvie@web.sourceforge.net:htdocs/snapshots/Nuvie.dmg || error Upload
 	#copying back the original nuvie.cpp which we had used sed on at the beginning of the script
 	#cp nuvie.cpp.bak nuvie.cpp
-} 2>&1 | teelog ; pipestatus || return
+} 2>&1 | teelog -a ; pipestatus || return
 
 #clean
 make distclean > /dev/null
