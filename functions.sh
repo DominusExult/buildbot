@@ -2,10 +2,13 @@
 headermain() {
 	if [ "$1" != "" ]; then
 		TARGET=$1
+		#lowercase of $TARGET
 		target="$(echo $TARGET | tr '[A-Z]' '[a-z]')"
+		#logfile
 		LOGFILE=~/.local/logs/${target}built.txt
+		#finally the header
 		echo
-		echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tBUILDING $1\t\t$(tput sgr 0)"
+		echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tBUILDING $TARGET\t\t$(tput sgr 0)"
 		echo
 		echo "logfile at $LOGFILE"
 		echo
@@ -15,18 +18,25 @@ headermain() {
 }
 
 header() {
-	echo
-	echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tbuilding for $1\t$(tput sgr 0)"
-	echo
+	if [ "$1" != "" ]; then
+		HEADER=$1
+		echo
+		echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tbuilding for $HEADER\t$(tput sgr 0)"
+		echo
+	else
+		error header function
+	fi
+	
 }
+
+alias deploy='echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tdeployment\t$(tput sgr 0)"'
 
 #-------------compiler & flags-------------
 flags() {
 	if  [ "$ARCH" = "" ]; then
-			ARCH=x86_64
-			SDK=10.11
-			DEPLOYMENT=10.11
-			
+		ARCH=x86_64
+		SDK=10.11
+		DEPLOYMENT=10.11
 	fi
 
 	export PKG_CONFIG_PATH=/opt/$ARCH/lib/pkgconfig
@@ -81,36 +91,61 @@ gcc() {
 }
 
 #-------------command shortcuts-------------
-autogen() {
-	./autogen.sh > /dev/null 2>&1
+alias autogen='./autogen.sh > /dev/null 2>&1'
+
+alias makes='make clean  > /dev/null ; make -j9 -s > /dev/null || error $HEADER make'
+
+config() {
+	if [ "$CONF_OPT" != "" ]; then
+		c1=$CONF_OPT
+	fi
+	if [ "$CONF_ARGS" != "" ]; then
+		c2=$CONF_ARGS
+	fi
+		
+	if [ "$ARCH" = "ppc" ]; then
+		./configure --host=powerpc-apple-darwin $CONF_OPT $CONF_ARGS || error $ARCH configure
+	else [ "$?" != "0" ]
+		./configure $CONF_OPT $CONF_ARGS || error $ARCH configure
+	fi
 }
 
 stripp() {
 	if [ "$ARCH" != "" ]; then
-		strip $1 -o $1_$ARCH || error $ARCH strip
+		strip $1 -o $1_$ARCH || error $HEADER strip
 	else
 		strip $1 -o $1 || error $1 strip
 	fi
 }
 
+build() {
+	config
+	makes
+	stripp $target
+}
+
 #-------------Error handling-------------
+mailerror() {
+	#send the logfile to mail address ERRORMAIL - define somewhere
+	if [ "$TARGET" != "" ] && [ "$ERRORMAIL" != "" ] && [ -f "$LOGFILE" ]; then
+		(echo "Subject: "$TARGET" build failure"; cat $LOGFILE | uuencode $LOGFILE) | sendmail -F "Buildbot" -t $ERRORMAIL
+	fi
+}
+
 error () {
 	if [ "$?" != "0" ]; then
 		if [ "$2" != "" ]; then
-			i2=" $2"
+			local i2=" $2"
 		fi
 		if [ "$3" != "" ]; then
-			i3=" $3"
+			local i3=" $3"
 		fi
 		echo
 		echo -e "$(tput setab 1)$(tput bold)$(tput setaf 7)\t\t***Error***\t\t\t$(tput sgr 0)"
 		echo -e "$(tput setab 1)$(tput bold)$(tput setaf 7)\t${1:-"Unknown Error"}${i2}${i3} failed!\t\t$(tput sgr 0)" 1>&2
 		echo -e "$(tput setab 1)$(tput bold)$(tput setaf 7)\t\t***Error***\t\t\t$(tput sgr 0)"
 		echo
-		#send the logfile to mail address ERRORMAIL from the mail address BUILDBOT - define them somewhere
-		if [ "$TARGET" != "" ] && [ "$BUILDBOT" != "" ] && [ "$ERRORMAIL" != "" ] && [ -f "$LOGFILE" ]; then
-			printf "Subject: "$TARGET" build failure" | sendmail -F "Buildbot "$BUILDBOT $ERRORMAIL < $LOGFILE
-		fi
+		mailerror
 		exit 1
 	fi
 }
@@ -124,29 +159,24 @@ pipestatus() {
 }
 
 teelog() {
-	tee $LOGFILE
-	#2> >(tee $LOGFILE >&2)
+	tee $1 $LOGFILE
 }
 
 echoall() {
-	echo ARCH=$ARCH
-	echo SDK=$SDK
-	echo OPT=$OPT
-	echo MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET
-	echo PATH=$PATH
-	echo CC=$CC
-	echo CXX=$CXX
-	echo CPPFLAGS=$CPPFLAGS
-	echo CFLAGS=$CFLAGS
-	echo CXXFLAGS=$CXXFLAGS
-	echo LDFLAGS=$LDFLAGS
-	echo PKG_CONFIG_PATH=$PKG_CONFIG_PATH
-	echo PKG_CONFIG=$PKG_CONFIG
-	echo LD=$LD
-	echo AR=$AR
-	echo RANLIB=$RANLIB
+	echo "ARCH="$ARCH
+	echo "SDK="$SDK
+	echo "OPT="$OPT
+	echo "MACOSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET
+	echo "PATH="$PATH
+	echo "CC="$CC
+	echo "CXX="$CXX
+	echo "CPPFLAGS="$CPPFLAGS
+	echo "CFLAGS="$CFLAGS
+	echo "CXXFLAGS="$CXXFLAGS
+	echo "LDFLAGS="$LDFLAGS
+	echo "PKG_CONFIG_PATH="$PKG_CONFIG_PATH
+	echo "PKG_CONFIG="$PKG_CONFIG
+	echo "LD="$LD
+	echo "AR="$AR
+	echo "RANLIB="$RANLIB
 }
-#error () {
-#  DIE=1
-#  error_exit "$1 $2 $3 failed."
-#}
