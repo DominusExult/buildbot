@@ -58,7 +58,7 @@ deploy
 	cp -p Pentagram.dmg ~/Snapshots/pentagram/"`date +%y-%m-%d-%H%M` Pentagram$REVISION.dmg"
 	mv Pentagram.dmg ~/Snapshots/pentagram/
 	cp -R Pentagram.app /Applications/
-	scp -p -i ~/.ssh/id_dsa ~/Snapshots/pentagram/Pentagram.dmg dominus,pentagram@web.sourceforge.net:htdocs/snapshots/Pentagram.dmg || error Upload
+	scp -p -i ~/.ssh/id_dsa ~/Snapshots/pentagram/Pentagram.dmg $USER,pentagram@web.sourceforge.net:htdocs/snapshots/Pentagram.dmg || error Upload
 } 2>&1 | teelog -a ; pipestatus || return
 
 #clean
