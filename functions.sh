@@ -32,6 +32,14 @@ header() {
 alias deploy='echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tdeployment\t$(tput sgr 0)"'
 
 #-------------compiler & flags-------------
+# I have simple prefixes for each OS X arch (ppc, i386, x86_64) in /opt/.
+# Even though one could use one universal prefix with all libs "lipo'ed"
+# it's easier to maintain different prefixes as they can have different 
+# problems when updating the libs.
+# For building ppc, I'm using the old Xcode 3.x stored in /opt/xcode3.
+# For 32/64bit intel, I'm just using clang that comes with current Xcode.
+# My SDK collection (10.4-10.11) is stored in /opt/SDKs
+
 flags() {
 	if  [ "$ARCH" = "" ]; then
 		ARCH=x86_64
