@@ -5,7 +5,7 @@
 headermain PENTAGRAM
 
 cd ~/code/snapshots/pentagram
-/usr/bin/svn update --depth=infinity || error SVN update
+/usr/bin/svn update --depth=infinity 2> >(teelog >&2) || error SVN update
 
 #configure options for all arches
 CONF_OPT='-q --enable-builtin-data=no --disable-debug --disable-alsa --disable-fluidsynth --enable-all-hq-scalers --enable-gc-scalers --enable-all-bilinear'
@@ -30,7 +30,7 @@ flags
 gcc arch
 ./bootstrap > /dev/null
 CONF_ARGS="--with-macosx-static-lib-path=/opt/$ARCH/lib"
-build 2>&1 | teelog ; pipestatus || return
+build 2>&1 | teelog -a ; pipestatus || return
 
 #ppc
 header PPC
@@ -41,7 +41,7 @@ flags
 gcc oldgcc
 ./bootstrap > /dev/null
 CONF_ARGS="--with-macosx-static-lib-path=/opt/$ARCH/lib  --with-macosx-code-signature"
-build 2>&1 | teelog ; pipestatus || return
+build 2>&1 | teelog -a ; pipestatus || return
 
 #deploy
 deploy
