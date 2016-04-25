@@ -1,0 +1,1 @@
+two simple patches to make the intel and ppc build of DOSBox into a static build that has no dependencies of non standard OS X libs.
