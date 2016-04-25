@@ -1,0 +1,4 @@
+AppleScripts that are supposed to be triggered by Mail.app when commit mails from varios projects are received. Open in Script Editor for further instructions.
+The scripts need to be in ~/Library/Application Scripts/com.apple.mail/ - otherwise Mail.app will not execute them (in newer OS X versions).
+
+snapshot.scpt is for all projects. The other scripts are for the obvious project. Either use the script for all OR the individual scripts, not both or the snapshot gets build twice.
