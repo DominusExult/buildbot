@@ -22,7 +22,7 @@ autogen
 CONF_ARGS="--prefix=/opt/$ARCH"
 {
 	config
-	patch -p0 -i intel.diff ||  error intel patch
+	patch -p0 -i ~/code/sh/dosbox-patches/intel.diff ||  error intel patch
 	makes
 	/usr/bin/strip ./src/dosbox -o ./src/dosbox_i386 ||  error $ARCH strip
 } 2>&1 | teelog ; pipestatus || return
@@ -40,7 +40,7 @@ autogen
 CONF_ARGS="--prefix=/opt/$ARCH"
 {
 	config
-	patch -p0 -i ppc.diff ||  error ppc patch
+	patch -p0 -i ~/code/sh/dosbox-patches/ppc.diff ||  error ppc patch
 	makes
 	strip ./src/dosbox -o ./src/dosbox_ppc
 } 2>&1 | teelog -a ; pipestatus || return
