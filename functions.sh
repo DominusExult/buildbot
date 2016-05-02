@@ -103,6 +103,8 @@ alias autogen='./autogen.sh > /dev/null 2>&1'
 
 alias makes='make clean  > /dev/null ; make -j9 -s > /dev/null || error $HEADER make'
 
+alias lockfile='rm -f ~/.local/"$TARGET"build1.lockfile'
+
 config() {
 	if [ "$CONF_OPT" != "" ]; then
 		c1=$CONF_OPT
@@ -133,10 +135,25 @@ build() {
 }
 
 #-------------Error handling-------------
-mailerror() {
+#trap CTRL-C and do something but it's not working yet when in teelog function
+#trap ctrl_c SIGINT
+#ctrl_c() {
+#	echo "** Trapped CTRL-C"
+#}
+
+mailresult() {
 	#send the logfile to mail address ERRORMAIL - define somewhere
 	if [ "$TARGET" != "" ] && [ "$ERRORMAIL" != "" ] && [ -f "$LOGFILE" ]; then
-		(echo "Subject: "$TARGET" build failure"; cat $LOGFILE | uuencode $LOGFILE) | sendmail -F "Buildbot" -t $ERRORMAIL
+
+		# To configure mail/sendmail/postfix, follow the guide at 
+		# http://www.developerfiles.com/how-to-send-emails-from-localhost-mac-os-x-el-capitan/
+		# For OS X 10.11 you will need to change smtp_sasl_mechanism_filter=plain to =login
+		
+		# if the name of the result mail sender should be the the same as the logged in $USER, 
+		# use "mail", if you need to use a different sender name use "sendmail"
+		
+		#mail -Es $TARGET" build "$1"" $ERRORMAIL < $LOGFILE
+		(echo "Subject: "$TARGET" build "$1""; cat $LOGFILE | uuencode $LOGFILE) | sendmail -F "Buildbot" -t $ERRORMAIL
 	fi
 }
 
@@ -153,9 +170,16 @@ error () {
 		echo -e "$(tput setab 1)$(tput bold)$(tput setaf 7)\t${1:-"Unknown Error"}${i2}${i3} failed!\t\t$(tput sgr 0)" 1>&2
 		echo -e "$(tput setab 1)$(tput bold)$(tput setaf 7)\t\t***Error***\t\t\t$(tput sgr 0)"
 		echo
-		mailerror
+		lockfile
+		mailresult failure
 		exit 1
 	fi
+}
+
+success () {
+	echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tBUILD COMPLETE\t\t$(tput sgr 0)"
+	lockfile
+	mailresult succeded
 }
 
 pipestatus() {
@@ -170,6 +194,7 @@ teelog() {
 	tee $1 $LOGFILE
 }
 
+#-------------debug-------------
 echoall() {
 	echo "ARCH="$ARCH
 	echo "SDK="$SDK
