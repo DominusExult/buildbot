@@ -86,7 +86,7 @@ cp -R xu4.app /Applications/
 
 # if you have uploaded your public key to SF you can automatically upload the 
 # snapshot to the download page
-scp -p -i ~/.ssh/id_dsa ~/Snapshots/xu4/xu4-MacOSX.dmg $USER,xu4@web.sourceforge.net:web/download/xu4-MacOSX.dmg || error Upload
+#scp -p -i ~/.ssh/id_dsa ~/Snapshots/xu4/xu4-MacOSX.dmg $USER,xu4@web.sourceforge.net:web/download/xu4-MacOSX.dmg || error Upload
 
 #leaving everything clean
 make -f makefile.osx clean > /dev/null && make -f makefile.osx clean-local > /dev/null

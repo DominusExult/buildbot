@@ -68,10 +68,12 @@ deploy
 	cp -p Nuvie-snapshot.dmg ~/Snapshots/nuvie/"`date +%y-%m-%d-%H%M` Nuvie$REVISION.dmg"
 	mv Nuvie-snapshot.dmg ~/Snapshots/nuvie/
 	cp -R Nuvie.app /Applications/
-	scp -p -i ~/.ssh/id_dsa ~/Snapshots/nuvie/Nuvie-snapshot.dmg $USER,nuvie@web.sourceforge.net:htdocs/snapshots/Nuvie.dmg || error Upload
+	#scp -p -i ~/.ssh/id_dsa ~/Snapshots/nuvie/Nuvie-snapshot.dmg $USER,nuvie@web.sourceforge.net:htdocs/snapshots/Nuvie.dmg || error Upload
 	#copying back the original nuvie.cpp which we had used sed on at the beginning of the script
 	#cp nuvie.cpp.bak nuvie.cpp
 } 2>&1 | teelog -a ; pipestatus || return
 
 #clean
 make distclean > /dev/null
+
+success

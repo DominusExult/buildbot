@@ -58,7 +58,7 @@ deploy
 	codesign --deep --force --sign "Developer ID Application" ./src/dosboxsvn.app ||  error codesign
 
 
-	#make disk image
+	# make disk image
 	mkdir DOSBox-Snapshot
 	CpMac -r  ./src/dosboxsvn.app ./DOSBox-Snapshot
 	cp ./AUTHORS ./DOSBox-Snapshot/Authors
@@ -78,10 +78,11 @@ deploy
 	mv Dosbox-Snapshot.dmg ~/Snapshots/dosbox/
 
 	# "upload"
-	cp -p ~/Snapshots/dosbox/Dosbox-Snapshot.dmg ~/dropbox/public/dosbox/
+	#cp -p ~/Snapshots/dosbox/Dosbox-Snapshot.dmg ~/dropbox/public/dosbox/
 } 2>&1 | teelog -a ; pipestatus || return
 
 
 # cleanup
 make -s distclean > /dev/null
 rm -r DOSBox-Snapshot
+success

@@ -61,7 +61,7 @@ deploy
 	cp -p Exult-snapshot.dmg ~/Snapshots/exult/"`date +%y-%m-%d-%H%M` Exult$REVISION.dmg"
 	mv Exult-snapshot.dmg ~/Snapshots/exult/
 	cp -R Exult.app /Applications/
-	scp -p -i ~/.ssh/id_dsa ~/Snapshots/exult/Exult-snapshot.dmg $USER,exult@web.sourceforge.net:htdocs/snapshots/Exult-snapshot.dmg || error Upload
+	#scp -p -i ~/.ssh/id_dsa ~/Snapshots/exult/Exult-snapshot.dmg $USER,exult@web.sourceforge.net:htdocs/snapshots/Exult-snapshot.dmg || error Upload
 } 2>&1 | teelog -a ; pipestatus || return
 
 #clean
@@ -100,3 +100,5 @@ cp -R Exult-SDL2.app /Applications/
 rm -R Exult-SDL2.app
 make distclean  > /dev/null
 #-------------SDL2-------------
+
+success
