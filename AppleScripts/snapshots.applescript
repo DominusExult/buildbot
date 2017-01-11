@@ -56,25 +56,28 @@ using terms from application "Mail"
 			IF there is another commit being detected while this script loops and 
 			waits for the first lockfile to be deleted, the new AppleScript process will quit.
 		*)
-		tell application "Finder"
-			if exists file lockfile1 then
-				if exists file lockfile2 then
-					#display dialog (POSIX path of lockfile2) & " exists" # just for debug
-					return
-				else
-					make new file at fullpath with properties {name:subj & "build2.lockfile"}
+		try
+			lockfile1 as alias
+			try
+				lockfile2 as alias
+				return
+			on error
+				do shell script ("touch " & POSIX path of file lockfile2)
+				tell application "System Events"
 					repeat while (file lockfile1 exists) = true
 					end repeat
-					do shell script ("rm " & POSIX path of file lockfile2)
-					make new file at fullpath with properties {name:subj & "build1.lockfile"}
-				end if
-			else
-				make new file at fullpath with properties {name:subj & "build1.lockfile"}
-				if exists file lockfile2 then
-					do shell script ("rm " & POSIX path of file lockfile2)
-				end if
-			end if
-		end tell
+				end tell
+				do shell script ("rm " & POSIX path of file lockfile2)
+				do shell script ("touch " & POSIX path of file lockfile1)
+			end try
+		on error
+			do shell script ("touch " & POSIX path of file lockfile1)
+			try
+				lockfile2 as alias
+				do shell script ("rm " & POSIX path of file lockfile2)
+			end try
+		end try
+		
 		activate
 		(* 
 			Now the script asks you whether you want to build a new 
@@ -90,9 +93,10 @@ Build " & subj & " snapshot?
 		if button returned of snapshotdialog = "OK" or gave up of snapshotdialog is true then
 			tell application "Terminal"
 				activate
-				activate
 				tell application "System Events" to tell process "Terminal" to keystroke "t" using {command down}
-				delay 1
+				repeat while contents of selected tab of window 1 starts with linefeed
+				delay 0.01
+			end repeat
 				do script "cd ~/code/sh; . " & subj & "snapshot.sh" in selected tab of the front window
 			end tell
 			# if the build is canceled delete the first lockfile
