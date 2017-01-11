@@ -38,7 +38,7 @@ make distclean  > /dev/null
 header i386
 ARCH=i386
 SDK=10.11
-DEPLOYMENT=10.5
+DEPLOYMENT=10.6
 flags
 gcc arch
 CONF_ARGS="--with-macosx-code-signature --with-macosx-static-lib-path=/opt/$ARCH/lib"
@@ -66,39 +66,5 @@ deploy
 
 #clean
 make distclean  > /dev/null
-
-#-------------SDL2-------------
-#x86_64 SDL2
-header SDL2
-ARCH=x86_64
-SDK=10.7
-DEPLOYMENT=10.7
-flags
-gcc
-CONF_ARGS="--with-macosx-code-signature --with-sdl=sdl2 --with-macosx-static-lib-path=/opt/$ARCH/lib"
-autogen
-{
-	config
-	makes
-	strip exult -o exult || error SDL2 strip
-
-	#bundle SDL2
-	make -s bundle || error $HEADER bundle
-
-	#image SDL2
-	export REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"
-	make -s osxdmg || error $HEADER dmg
-} 2>&1 | teelog ; pipestatus || return
-
-deploy
-cp -p Exult-snapshot.dmg ~/Snapshots/exult/"`date +%y-%m-%d-%H%M` Exult-SDL2$REVISION.dmg"
-mv Exult-snapshot.dmg ~/Snapshots/exult/Exult-SDL2-snapshot.dmg
-mv Exult.app Exult-SDL2.app
-cp -R Exult-SDL2.app /Applications/
-
-#clean
-rm -R Exult-SDL2.app
-make distclean  > /dev/null
-#-------------SDL2-------------
 
 success
