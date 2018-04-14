@@ -10,6 +10,7 @@ headermain() {
 		echo
 		echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tBUILDING $TARGET\t\t$(tput sgr 0)"
 		echo
+		echo `date +%y-%m-%d-%H:%M`
 		echo "logfile at $LOGFILE"
 		echo
 	else
@@ -153,7 +154,7 @@ mailresult() {
 		# use "mail", if you need to use a different sender name use "sendmail"
 		
 		#mail -Es $TARGET" build "$1"" $ERRORMAIL < $LOGFILE
-		(echo "Subject: "$TARGET" build "$1""; cat $LOGFILE | uuencode $LOGFILE) | sendmail -F "Buildbot" -t $ERRORMAIL
+		(echo "Subject: iMac - "$TARGET" build "$1""; cat $LOGFILE | uuencode $LOGFILE) | sendmail -F "Buildbot" -t $ERRORMAIL
 	fi
 }
 
