@@ -11,6 +11,24 @@ cd ~/Code/snapshots/dosbox
 #configure options for all arches
 CONF_OPT='-q --disable-sdltest --disable-alsatest --enable-core-inline'
 
+#x86_64
+header x86_64
+ARCH=x86_64
+SDK=10.11
+DEPLOYMENT=10.10
+flags
+gcc
+autogen
+CONF_ARGS="--prefix=/opt/$ARCH"
+{
+	config
+	patch -p0 -i ~/code/sh/dosbox-patches/intel64.diff ||  error intel64 patch
+	makes
+	/usr/bin/strip ./src/dosbox -o ./src/dosbox_x86_64 ||  error $ARCH strip
+} 2>&1 | teelog ; pipestatus || return
+
+make -s distclean > /dev/null
+
 #i386
 header i386
 ARCH=i386
@@ -49,7 +67,7 @@ CONF_ARGS="--prefix=/opt/$ARCH"
 deploy
 {
 	# make fat build
-	lipo -create -arch i386 ./src/dosbox_i386 -arch ppc ./src/dosbox_ppc -output ./src/DOSBox  ||  error lipo
+	lipo -create -arch x86_64 ./src/dosbox_x86_64 -arch i386 ./src/dosbox_i386 -arch ppc ./src/dosbox_ppc -output ./src/DOSBox  ||  error lipo
 
 	# bundle
 	cp ./src/DOSBox ./src/dosboxsvn.app/contents/MacOS/DOSBox ||  error bundle
