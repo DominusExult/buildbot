@@ -45,7 +45,7 @@ make distclean > /dev/null
 header i386
 ARCH=i386
 SDK=10.11
-DEPLOYMENT=10.5
+DEPLOYMENT=10.7
 flags
 gcc arch
 autogen

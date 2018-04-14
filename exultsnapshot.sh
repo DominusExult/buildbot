@@ -17,7 +17,7 @@ SDK=10.11
 DEPLOYMENT=10.7
 flags
 gcc
-CONF_ARGS="--with-macosx-static-lib-path=/opt/$ARCH/lib"
+CONF_ARGS="--with-macosx-static-lib-path=/opt/$ARCH/lib --x-includes=/usr/X11/include --x-libraries=/usr/X11/lib"
 autogen
 build 2>&1 | teelog ; pipestatus || return
 make distclean > /dev/null
@@ -38,7 +38,7 @@ make distclean  > /dev/null
 header i386
 ARCH=i386
 SDK=10.11
-DEPLOYMENT=10.6
+DEPLOYMENT=10.7
 flags
 gcc arch
 CONF_ARGS="--with-macosx-code-signature --with-macosx-static-lib-path=/opt/$ARCH/lib"
