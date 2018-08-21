@@ -116,6 +116,8 @@ config() {
 		
 	if [ "$ARCH" = "ppc" ]; then
 		./configure --host=powerpc-apple-darwin $CONF_OPT $CONF_ARGS || error $ARCH configure
+	elif [ "$ARCH" = "i386" ]; then
+		./configure --build=i386-apple-darwin $CONF_OPT $CONF_ARGS || error $ARCH configure
 	else [ "$?" != "0" ]
 		./configure $CONF_OPT $CONF_ARGS || error $ARCH configure
 	fi
