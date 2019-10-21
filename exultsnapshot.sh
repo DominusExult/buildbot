@@ -17,22 +17,22 @@ SDK=10.11
 DEPLOYMENT=10.7
 flags
 gcc
-CONF_ARGS="--with-macosx-static-lib-path=/opt/$ARCH/lib --x-includes=/usr/X11/include --x-libraries=/usr/X11/lib"
+CONF_ARGS="--with-macosx-static-lib-path=/opt/$ARCH/lib"
 autogen
 build 2>&1 | teelog ; pipestatus || return
 make distclean > /dev/null
 
 #ppc
-header PPC
-ARCH=ppc
-SDK=10.5
-DEPLOYMENT=10.4
-flags
-gcc oldgcc
-CONF_ARGS="--disable-data --with-macosx-static-lib-path=/opt/$ARCH/lib"
-autogen
-build 2>&1 | teelog -a ; pipestatus || return
-make distclean  > /dev/null
+#header PPC
+#ARCH=ppc
+#SDK=10.5
+#DEPLOYMENT=10.4
+#flags
+#gcc oldgcc
+#CONF_ARGS="--disable-data --with-macosx-static-lib-path=/opt/$ARCH/lib"
+#autogen
+#build 2>&1 | teelog -a ; pipestatus || return
+#make distclean  > /dev/null
 
 #i386
 header i386
@@ -49,7 +49,8 @@ build 2>&1 | teelog -a ; pipestatus || return
 deploy
 {
 	#make fat exult binary
-	lipo -create -arch x86_64 exult_x86_64 -arch i386 exult_i386 -arch ppc exult_ppc -output exult || error lipo
+	#lipo -create -arch x86_64 exult_x86_64 -arch i386 exult_i386 -arch ppc exult_ppc -output exult || error lipo
+	lipo -create -arch x86_64 exult_x86_64 -arch i386 exult_i386 -output exult || error lipo
 
 	#bundle
 	make -s bundle || error bundle

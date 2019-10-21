@@ -96,7 +96,7 @@ deploy
 	mv Dosbox-Snapshot.dmg ~/Snapshots/dosbox/
 
 	# "upload"
-	#cp -p ~/Snapshots/dosbox/Dosbox-Snapshot.dmg ~/dropbox/public/dosbox/
+	cp -p ~/Snapshots/dosbox/Dosbox-Snapshot.dmg ~/dropbox/public/dosbox/
 } 2>&1 | teelog -a ; pipestatus || return
 
 
@@ -104,3 +104,4 @@ deploy
 make -s distclean > /dev/null
 rm -r DOSBox-Snapshot
 success
+cd ~/code/sh;  .  dosboxsdl2snapshot.sh
