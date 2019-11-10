@@ -1,0 +1,4 @@
+on OS X you often get compile messages from ranlib that a file has no symbols or has an empty table. This is caused by both ranlib and ar that calls ranlib.
+If you add those two scripts to your make command you filter these messages out.
+example:
+make AR=path_to_this_ar RANLIB=path_to_this_ranlib 

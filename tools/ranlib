@@ -1,0 +1,2 @@
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib $* 2>&1 | grep -v "the table of contents is empty" | grep -v "no symbols"
+   exit ${PIPESTATUS[0]}
