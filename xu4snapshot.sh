@@ -90,3 +90,5 @@ cp -R xu4.app /Applications/
 
 #leaving everything clean
 make -f makefile.osx clean > /dev/null && make -f makefile.osx clean-local > /dev/null
+
+success

@@ -65,3 +65,5 @@ deploy
 make clean-local > /dev/null
 make clean > /dev/null
 make distclean > /dev/null
+
+success
