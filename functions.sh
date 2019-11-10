@@ -73,8 +73,7 @@ gcc() {
 	if [ "$ARCH" != "" ]; then
 		export PATH=/opt/$ARCH/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
 		export LD="/usr/bin/ld"
-		export AR="/opt/xcode3/usr/bin/ar"
-		export RANLIB="/opt/xcode3/usr/bin/ranlib"
+		export RANLIB="~/code/sh/tools/ranlib"
 		if [ "$1" = "legacy" ]; then
 			export PATH=/opt/$ARCH/bin/:/opt/xcode3/usr/bin:/opt/xcode3/usr/sbin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
 			export CC='/opt/xcode3/usr/bin/llvm-gcc-4.2 -arch '$ARCH
@@ -102,7 +101,7 @@ gcc() {
 #-------------command shortcuts-------------
 alias autogen='./autogen.sh > /dev/null 2>&1'
 
-alias makes='make clean  > /dev/null ; make -j9 -s > /dev/null || error $HEADER make'
+alias makes='make clean  > /dev/null ; make -j9 -s AR="~/code/sh/tools/ar" > /dev/null || error $HEADER make'
 
 alias lockfile='rm -f ~/.local/"$TARGET"build1.lockfile'
 
