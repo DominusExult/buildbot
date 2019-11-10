@@ -6,9 +6,9 @@ headermain DOSBOX SDL2
 
 
 cd ~/Code/snapshots/dosboxSDL2
-/usr/bin/svn  revert . -R 2> >(teelog >&2) || error SVN revert
+/usr/bin/svn  revert . -R > /dev/null 2> >(teelog >&2) || error SVN revert
 /usr/bin/svn update --depth=infinity 2> >(teelog >&2) || error SVN update
-patch -p0 -i ~/code/sh/dosbox-patches/SDL2new.diff 2> >(teelog >&2) || error SDL2 patch
+patch -p0 -i ~/code/sh/dosbox-patches/SDL2new.diff > /dev/null 2> >(teelog >&2) || error SDL2 patch
 
 #configure options for all arches
 CONF_OPT='-q --with-sdl=sdl2'
@@ -24,7 +24,7 @@ autogen
 CONF_ARGS="--prefix=/opt/$ARCH"
 {
 	config
-	patch -p0 -i ~/code/sh/dosbox-patches/intel64SDL2.diff ||  error intel64 patch
+	patch -p0 -i ~/code/sh/dosbox-patches/intel64SDL2.diff > /dev/null ||  error intel64SDL2 patch
 	makes
 	/usr/bin/strip ./src/dosbox -o ./src/dosbox ||  error $ARCH strip
 } 2>&1 | teelog ; pipestatus || return
@@ -69,4 +69,5 @@ deploy
 # cleanup
 make -s distclean > /dev/null
 rm -r DOSBox-Snapshot
+
 success
