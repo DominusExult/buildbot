@@ -9,7 +9,7 @@ cd ~/Code/snapshots/dosbox
 /usr/bin/svn update --depth=infinity 2> >(teelog >&2) || error SVN update
 
 #configure options for all arches
-CONF_OPT='-q --disable-sdltest --disable-alsatest --enable-core-inline'
+CONF_OPT='-q --disable-sdltest --disable-alsatest'
 
 #x86_64
 header x86_64
