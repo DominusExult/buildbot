@@ -1,21 +1,21 @@
 --- ./Makefile 
 +++ ./Makefile
-139c139
-< LIBS = -lSDL_sound  -L/opt/ppc/lib -lSDLmain -lSDL -Wl,-framework,Cocoa -lpng -lz -lSDL_net -framework OpenGL -framework CoreMIDI -framework AudioUnit -framework AudioToolbox
+241c241
+< LIBS = -lSDL_sound  -L/opt/ppc/lib -lSDLmain -lSDL -Wl,-framework,Cocoa -framework CoreMIDI -framework AudioUnit -framework AudioToolbox -lpng -lz -lSDL_net -framework OpenGL
 ---
 > LIBS = -L/opt/ppc/lib /opt/ppc/lib/libSDLmain.a /opt/ppc/lib/libSDL.a -Wl,-framework,OpenGL -Wl,-framework,Cocoa -Wl,-framework,ApplicationServices -Wl,-framework,Carbon -Wl,-framework,AudioToolbox -Wl,-framework,AudioUnit -Wl,-framework,IOKit -framework CoreMIDI /opt/ppc/lib/libpng.a /opt/ppc/lib/libz.a /opt/ppc/lib/libSDL_net.a /opt/ppc/lib/libSDL_sound.a /opt/ppc/lib/libogg.a /opt/ppc/lib/libvorbis.a /opt/ppc/lib/libvorbisfile.a /opt/ppc/lib/libvorbisenc.a
-155c155
+257c257
 < SDL_LIBS = -L/opt/ppc/lib -lSDLmain -lSDL -Wl,-framework,Cocoa
 ---
 > SDL_LIBS = -L/opt/ppc/lib /opt/ppc/lib/libSDLmain.a /opt/ppc/lib/libSDL.a -Wl,-framework,OpenGL -Wl,-framework,Cocoa -Wl,-framework,ApplicationServices -Wl,-framework,Carbon -Wl,-framework,AudioToolbox -Wl,-framework,AudioUnit -Wl,-framework,IOKit
 
 --- ./src/Makefile 
 +++ ./src/Makefile
-143c143
-< LIBS = -lSDL_sound  -L/opt/ppc/lib -lSDLmain -lSDL -Wl,-framework,Cocoa -lpng -lz -lSDL_net -framework OpenGL -framework CoreMIDI -framework AudioUnit -framework AudioToolbox
+246c246
+< LIBS = -lSDL_sound  -L/opt/ppc/lib -lSDLmain -lSDL -Wl,-framework,Cocoa -framework CoreMIDI -framework AudioUnit -framework AudioToolbox -lpng -lz -lSDL_net -framework OpenGL
 ---
 > LIBS = -L/opt/ppc/lib /opt/ppc/lib/libSDLmain.a /opt/ppc/lib/libSDL.a -Wl,-framework,OpenGL -Wl,-framework,Cocoa -Wl,-framework,ApplicationServices -Wl,-framework,Carbon -Wl,-framework,AudioToolbox -Wl,-framework,AudioUnit -Wl,-framework,IOKit -framework CoreMIDI /opt/ppc/lib/libpng.a /opt/ppc/lib/libz.a /opt/ppc/lib/libSDL_net.a /opt/ppc/lib/libSDL_sound.a /opt/ppc/lib/libogg.a /opt/ppc/lib/libvorbis.a /opt/ppc/lib/libvorbisfile.a /opt/ppc/lib/libvorbisenc.a
-159c159
+262c262
 < SDL_LIBS = -L/opt/ppc/lib -lSDLmain -lSDL -Wl,-framework,Cocoa
 ---
 > SDL_LIBS = -L/opt/ppc/lib /opt/ppc/lib/libSDLmain.a /opt/ppc/lib/libSDL.a -Wl,-framework,OpenGL -Wl,-framework,Cocoa -Wl,-framework,ApplicationServices -Wl,-framework,Carbon -Wl,-framework,AudioToolbox -Wl,-framework,AudioUnit -Wl,-framework,IOKit

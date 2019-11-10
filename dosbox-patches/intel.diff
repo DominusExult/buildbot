@@ -1,21 +1,21 @@
 --- ./Makefile 
 +++ ./Makefile
-139c139
-< LIBS = -lSDL_sound  -L/opt/i386/lib -lSDLmain -lSDL -Wl,-framework,Cocoa -lpng -lz -lSDL_net -framework OpenGL -framework CoreMIDI -framework AudioUnit -framework AudioToolbox
+241c241
+< LIBS = -lSDL_sound  -L/opt/i386/lib -lSDLmain -lSDL -Wl,-framework,Cocoa -framework CoreMIDI -framework AudioUnit -framework AudioToolbox -lpng -lz -lSDL_net -framework OpenGL
 ---
 > LIBS = -L/opt/i386/lib /opt/i386/lib/libSDLmain.a /opt/i386/lib/libSDL.a -Wl,-framework,OpenGL -Wl,-framework,Cocoa -Wl,-framework,ApplicationServices -Wl,-framework,Carbon -Wl,-framework,AudioToolbox -Wl,-framework,AudioUnit -Wl,-framework,IOKit -framework CoreMIDI /opt/i386/lib/libpng.a /opt/i386/lib/libz.a /opt/i386/lib/libSDL_net.a /opt/i386/lib/libSDL_sound.a /opt/i386/lib/libogg.a /opt/i386/lib/libvorbis.a /opt/i386/lib/libvorbisfile.a /opt/i386/lib/libvorbisenc.a
-155c155
+257c257
 < SDL_LIBS = -L/opt/i386/lib -lSDLmain -lSDL -Wl,-framework,Cocoa
 ---
 > SDL_LIBS = -L/opt/i386/lib /opt/i386/lib/libSDLmain.a /opt/i386/lib/libSDL.a -Wl,-framework,OpenGL -Wl,-framework,Cocoa -Wl,-framework,ApplicationServices -Wl,-framework,Carbon -Wl,-framework,AudioToolbox -Wl,-framework,AudioUnit -Wl,-framework,IOKit
 
 --- ./src/Makefile 
 +++ ./src/Makefile
-143c143
-< LIBS = -lSDL_sound  -L/opt/i386/lib -lSDLmain -lSDL -Wl,-framework,Cocoa -lpng -lz -lSDL_net -framework OpenGL -framework CoreMIDI -framework AudioUnit -framework AudioToolbox
+246c246
+< LIBS = -lSDL_sound  -L/opt/i386/lib -lSDLmain -lSDL -Wl,-framework,Cocoa -framework CoreMIDI -framework AudioUnit -framework AudioToolbox -lpng -lz -lSDL_net -framework OpenGL
 ---
 > LIBS = -L/opt/i386/lib /opt/i386/lib/libSDLmain.a /opt/i386/lib/libSDL.a -Wl,-framework,OpenGL -Wl,-framework,Cocoa -Wl,-framework,ApplicationServices -Wl,-framework,Carbon -Wl,-framework,AudioToolbox -Wl,-framework,AudioUnit -Wl,-framework,IOKit -framework CoreMIDI /opt/i386/lib/libpng.a /opt/i386/lib/libz.a /opt/i386/lib/libSDL_net.a /opt/i386/lib/libSDL_sound.a /opt/i386/lib/libogg.a /opt/i386/lib/libvorbis.a /opt/i386/lib/libvorbisfile.a /opt/i386/lib/libvorbisenc.a
-159c159
+262c262
 < SDL_LIBS = -L/opt/i386/lib -lSDLmain -lSDL -Wl,-framework,Cocoa
 ---
 > SDL_LIBS = -L/opt/i386/lib /opt/i386/lib/libSDLmain.a /opt/i386/lib/libSDL.a -Wl,-framework,OpenGL -Wl,-framework,Cocoa -Wl,-framework,ApplicationServices -Wl,-framework,Carbon -Wl,-framework,AudioToolbox -Wl,-framework,AudioUnit -Wl,-framework,IOKit

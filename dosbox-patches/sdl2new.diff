@@ -1,6 +1,6 @@
 Index: acinclude.m4
 ===================================================================
---- acinclude.m4	(revision 4275)
+--- acinclude.m4	(revision 4281)
 +++ acinclude.m4	(working copy)
 @@ -1,164 +1,147 @@
 -dnl AM_PATH_SDL([MINIMUM-VERSION, [ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND]]])
@@ -359,7 +359,7 @@ Index: acinclude.m4
   *  Copyright (C) 2002-2019  The DOSBox Team
 Index: configure.ac
 ===================================================================
---- configure.ac	(revision 4275)
+--- configure.ac	(revision 4281)
 +++ configure.ac	(working copy)
 @@ -1,5 +1,5 @@
  dnl Init.
@@ -474,7 +474,7 @@ Index: configure.ac
  dnl Checks for header files.
  
  dnl Checks for typedefs, structures, and compiler characteristics.
-@@ -432,23 +499,29 @@
+@@ -459,23 +526,29 @@
  AH_TEMPLATE(C_IPX,[Define to 1 to enable IPX over Internet networking, requires SDL_net])
  AC_CHECK_HEADER(SDL_net.h,have_sdl_net_h=yes,)
  
@@ -509,7 +509,7 @@ Index: configure.ac
  fi
  
  AH_TEMPLATE(C_X11_XKB,[define to 1 if you have XKBlib.h and X11 lib])
-@@ -515,12 +588,12 @@
+@@ -542,12 +615,12 @@
  fi
  
  AH_TEMPLATE(C_SDL_SOUND,[Define to 1 to enable SDL_sound support])
@@ -524,16 +524,15 @@ Index: configure.ac
      AC_DEFINE(C_SDL_SOUND,1)
     else 
       AC_MSG_WARN([Can't find SoundSeek in libSDL_Sound, libSDL_sound support disabled])
-@@ -564,7 +637,7 @@
+@@ -591,6 +664,7 @@
         dnl to do more to distinguish them.
         dnl For now I am lazy and do not add proper detection code.
         AC_DEFINE(MACOSX, 1, [Compiling on Mac OS X])
--       LIBS="$LIBS -framework CoreMIDI -framework AudioUnit -framework AudioToolbox"
-+       LIBS="$LIBS -framework CoreMIDI -framework AudioUnit -framework AudioToolbox -framework CoreFoundation -framework Cocoa"
++       LIBS="$LIBS -framework CoreFoundation -framework Cocoa"
         AC_DEFINE(C_DIRECTSERIAL, 1, [ Define to 1 if you want serial passthrough support (Win32, Posix and OS/2).])
         ;;
      *-*-linux*)
-@@ -623,6 +696,9 @@
+@@ -649,6 +723,9 @@
  src/shell/Makefile
  src/platform/Makefile
  src/platform/visualc/Makefile
@@ -545,7 +544,7 @@ Index: configure.ac
  docs/Makefile
 Index: src/Makefile.am
 ===================================================================
---- src/Makefile.am	(revision 4275)
+--- src/Makefile.am	(revision 4281)
 +++ src/Makefile.am	(working copy)
 @@ -1,6 +1,6 @@
  AM_CPPFLAGS = -I$(top_srcdir)/include
@@ -567,7 +566,7 @@ Index: src/Makefile.am
  
 Index: src/dos/cdrom.cpp
 ===================================================================
---- src/dos/cdrom.cpp	(revision 4275)
+--- src/dos/cdrom.cpp	(revision 4281)
 +++ src/dos/cdrom.cpp	(working copy)
 @@ -21,6 +21,7 @@
  // SDL CDROM 
@@ -619,7 +618,7 @@ Index: src/dos/cdrom.cpp
 -
 Index: src/dos/cdrom.h
 ===================================================================
---- src/dos/cdrom.h	(revision 4275)
+--- src/dos/cdrom.h	(revision 4281)
 +++ src/dos/cdrom.h	(working copy)
 @@ -32,6 +32,11 @@
  #include "mem.h"
@@ -677,7 +676,7 @@ Index: src/dos/cdrom.h
  #endif /* __CDROM_INTERFACE__ */
 Index: src/dos/cdrom_aspi_win32.cpp
 ===================================================================
---- src/dos/cdrom_aspi_win32.cpp	(revision 4275)
+--- src/dos/cdrom_aspi_win32.cpp	(revision 4281)
 +++ src/dos/cdrom_aspi_win32.cpp	(working copy)
 @@ -17,11 +17,14 @@
   */
@@ -702,7 +701,7 @@ Index: src/dos/cdrom_aspi_win32.cpp
 +#endif /* C_PHYSICAL_CDROM_MOUNT */
 Index: src/dos/cdrom_ioctl_linux.cpp
 ===================================================================
---- src/dos/cdrom_ioctl_linux.cpp	(revision 4275)
+--- src/dos/cdrom_ioctl_linux.cpp	(revision 4281)
 +++ src/dos/cdrom_ioctl_linux.cpp	(working copy)
 @@ -17,8 +17,11 @@
   */
@@ -724,7 +723,7 @@ Index: src/dos/cdrom_ioctl_linux.cpp
 +#endif /* C_PHYSICAL_CDROM_MOUNT */
 Index: src/dos/cdrom_ioctl_os2.cpp
 ===================================================================
---- src/dos/cdrom_ioctl_os2.cpp	(revision 4275)
+--- src/dos/cdrom_ioctl_os2.cpp	(revision 4281)
 +++ src/dos/cdrom_ioctl_os2.cpp	(working copy)
 @@ -17,8 +17,11 @@
   */
@@ -746,7 +745,7 @@ Index: src/dos/cdrom_ioctl_os2.cpp
 +#endif /* C_PHYSICAL_CDROM_MOUNT */
 Index: src/dos/cdrom_ioctl_win32.cpp
 ===================================================================
---- src/dos/cdrom_ioctl_win32.cpp	(revision 4275)
+--- src/dos/cdrom_ioctl_win32.cpp	(revision 4281)
 +++ src/dos/cdrom_ioctl_win32.cpp	(working copy)
 @@ -17,6 +17,10 @@
   */
@@ -775,7 +774,7 @@ Index: src/dos/cdrom_ioctl_win32.cpp
 +#endif /* C_PHYSICAL_CDROM_MOUNT */
 Index: src/dos/dos_mscdex.cpp
 ===================================================================
---- src/dos/dos_mscdex.cpp	(revision 4275)
+--- src/dos/dos_mscdex.cpp	(revision 4281)
 +++ src/dos/dos_mscdex.cpp	(working copy)
 @@ -48,7 +48,9 @@
  #define	REQUEST_STATUS_ERROR	0x8000
@@ -818,7 +817,7 @@ Index: src/dos/dos_mscdex.cpp
  	delete mscdex;
 Index: src/dos/dos_programs.cpp
 ===================================================================
---- src/dos/dos_programs.cpp	(revision 4275)
+--- src/dos/dos_programs.cpp	(revision 4281)
 +++ src/dos/dos_programs.cpp	(working copy)
 @@ -56,7 +56,12 @@
  Bitu DEBUG_EnableDebugger(void);
@@ -958,7 +957,7 @@ Index: src/dos/dos_programs.cpp
  		"These are the default keybindings.\n"
 Index: src/dos/drive_local.cpp
 ===================================================================
---- src/dos/drive_local.cpp	(revision 4275)
+--- src/dos/drive_local.cpp	(revision 4281)
 +++ src/dos/drive_local.cpp	(working copy)
 @@ -273,7 +273,12 @@
  
@@ -1001,7 +1000,7 @@ Index: src/dos/drive_local.cpp
  	} else {
 Index: src/gui/sdl_mapper.cpp
 ===================================================================
---- src/gui/sdl_mapper.cpp	(revision 4275)
+--- src/gui/sdl_mapper.cpp	(revision 4281)
 +++ src/gui/sdl_mapper.cpp	(working copy)
 @@ -44,7 +44,8 @@
  	CLR_WHITE=2,
@@ -1612,7 +1611,7 @@ Index: src/gui/sdl_mapper.cpp
  	MAPPER_AddHandler(&MAPPER_Run,MK_f1,MMOD1,"mapper","Mapper");
 Index: src/gui/sdlmain.cpp
 ===================================================================
---- src/gui/sdlmain.cpp	(revision 4275)
+--- src/gui/sdlmain.cpp	(revision 4281)
 +++ src/gui/sdlmain.cpp	(working copy)
 @@ -31,9 +31,15 @@
  #include <signal.h>
@@ -3722,7 +3721,7 @@ Index: src/gui/sdlmain.cpp
  
 Index: src/hardware/mixer.cpp
 ===================================================================
---- src/hardware/mixer.cpp	(revision 4275)
+--- src/hardware/mixer.cpp	(revision 4281)
 +++ src/hardware/mixer.cpp	(working copy)
 @@ -86,6 +86,10 @@
  	bool nosound;
@@ -3856,7 +3855,7 @@ Index: src/hardware/mixer.cpp
 +}
 Index: src/misc/cross.cpp
 ===================================================================
---- src/misc/cross.cpp	(revision 4275)
+--- src/misc/cross.cpp	(revision 4281)
 +++ src/misc/cross.cpp	(working copy)
 @@ -31,6 +31,10 @@
  #include <shlobj.h>

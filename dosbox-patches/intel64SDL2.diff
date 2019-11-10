@@ -1,21 +1,21 @@
 --- ./Makefile 
 +++ ./Makefile
-139c139
-< LIBS = -lSDL2_sound  -L/opt/x86_64/lib -lSDL2 -lpng -lz -lSDL2_net -framework OpenGL -framework CoreMIDI -framework AudioUnit -framework AudioToolbox -framework CoreFoundation -framework Cocoa
+241c241
+< LIBS = -lSDL2_sound  -L/opt/x86_64/lib -lSDL2 -framework CoreMIDI -framework AudioUnit -framework AudioToolbox -lpng -lz -lSDL2_net -framework OpenGL -framework CoreFoundation -framework Cocoa
 ---
 > LIBS = -L/opt/x86_64/lib /opt/x86_64/lib/libSDL2main.a /opt/x86_64/lib/libSDL2.a -liconv -Wl,-framework,CoreAudio -Wl,-framework,AudioToolbox -Wl,-framework,ForceFeedback -lobjc -Wl,-framework,CoreVideo -Wl,-framework,Cocoa -Wl,-framework,Carbon -Wl,-framework,IOKit -Wl,-weak_framework,QuartzCore -Wl,-weak_framework,Metal -Wl,-framework,CoreFoundation -Wl,-framework,OpenGL -Wl,-framework,CoreMIDI -Wl,-framework,AudioUnit /opt/x86_64/lib/libpng.a /opt/x86_64/lib/libz.a /opt/x86_64/lib/libSDL2_net.a /opt/x86_64/lib/libSDL2_sound.a /opt/x86_64/lib/libogg.a /opt/x86_64/lib/libvorbis.a /opt/x86_64/lib/libvorbisfile.a /opt/x86_64/lib/libvorbisenc.a
-155c155
+257c257
 < SDL_LIBS = -L/opt/x86_64/lib -lSDL2
 ---
 > SDL_LIBS = -L/opt/x86_64/lib /opt/x86_64/lib/libSDL2main.a /opt/x86_64/lib/libSDL2.a -liconv -Wl,-framework,CoreAudio -Wl,-framework,AudioToolbox -Wl,-framework,ForceFeedback -lobjc -Wl,-framework,CoreVideo -Wl,-framework,Cocoa -Wl,-framework,Carbon -Wl,-framework,IOKit -Wl,-weak_framework,QuartzCore -Wl,-weak_framework,Metal -Wl,-framework,CoreFoundation
 
 --- ./src/Makefile 
 +++ ./src/Makefile
-143c143
-< LIBS = -lSDL2_sound  -L/opt/x86_64/lib -lSDL2 -lpng -lz -lSDL2_net -framework OpenGL -framework CoreMIDI -framework AudioUnit -framework AudioToolbox -framework CoreFoundation -framework Cocoa
+248c248
+< LIBS = -lSDL2_sound  -L/opt/x86_64/lib -lSDL2 -framework CoreMIDI -framework AudioUnit -framework AudioToolbox -lpng -lz -lSDL2_net -framework OpenGL -framework CoreFoundation -framework Cocoa
 ---
 > LIBS = -L/opt/x86_64/lib /opt/x86_64/lib/libSDL2main.a /opt/x86_64/lib/libSDL2.a -liconv -Wl,-framework,CoreAudio -Wl,-framework,AudioToolbox -Wl,-framework,ForceFeedback -lobjc -Wl,-framework,CoreVideo -Wl,-framework,Cocoa -Wl,-framework,Carbon -Wl,-framework,IOKit -Wl,-weak_framework,QuartzCore -Wl,-weak_framework,Metal -Wl,-framework,CoreFoundation -Wl,-framework,OpenGL -Wl,-framework,CoreMIDI -Wl,-framework,AudioUnit /opt/x86_64/lib/libpng.a /opt/x86_64/lib/libz.a /opt/x86_64/lib/libSDL2_net.a /opt/x86_64/lib/libSDL2_sound.a /opt/x86_64/lib/libogg.a /opt/x86_64/lib/libvorbis.a /opt/x86_64/lib/libvorbisfile.a /opt/x86_64/lib/libvorbisenc.a
-159c159
+264c264
 < SDL_LIBS = -L/opt/x86_64/lib -lSDL2
 ---
 > SDL_LIBS = -L/opt/x86_64/lib /opt/x86_64/lib/libSDL2main.a /opt/x86_64/lib/libSDL2.a -liconv -Wl,-framework,CoreAudio -Wl,-framework,AudioToolbox -Wl,-framework,ForceFeedback -lobjc -Wl,-framework,CoreVideo -Wl,-framework,Cocoa -Wl,-framework,Carbon -Wl,-framework,IOKit -Wl,-weak_framework,QuartzCore -Wl,-weak_framework,Metal -Wl,-framework,CoreFoundation
