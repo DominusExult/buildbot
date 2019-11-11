@@ -1,1 +1,4 @@
-two simple patches to make the intel and ppc build of DOSBox into a static build that has no dependencies of non standard OS X libs.
+intel.diff, intel64.diff, ppc.diff are patches for the makefiles (after autogen and configure) of DOSBox to build a static binary that has no dependencies of non standard OS X libs.
+
+sdl2new.diff patches the source to be able to build against the SDL2 backend. src_sdl_cdrom.zip are additional files needed for this. The folder inside needs to go into the "src" subfolder of the DOSBox source.
+intel64SDL2.diff patches the makefiles (after autogen and configure) of DOSBox (SDL2) to build a static binary that has no dependencies of non standard OS X libs.
