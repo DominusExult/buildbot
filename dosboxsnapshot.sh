@@ -51,7 +51,7 @@ make -s distclean > /dev/null
 header i386
 ARCH=i386
 SDK=10.6
-DEPLOYMENT=10.5
+DEPLOYMENT=10.6
 flags
 gcc oldgcc
 autogen
@@ -90,13 +90,14 @@ deploy
 	# bundle
 	cp ./src/DOSBox ./src/dosboxsvn.app/contents/MacOS/DOSBox ||  error bundle
 
-	# codesign to satisfy OS X 10.8 Gatekeeper
-	codesign --deep --force --sign "Developer ID Application" ./src/dosboxsvn.app ||  error codesign
+	# codesign to satisfy OS X 10.8+ Gatekeeper, Remove old Codesign to make Notarization happy
+	rm -rf ./src/dosboxsvn.app/contents/_CodeSignature
+	codesign --options runtime --deep --force --sign "Developer ID Application" ./src/dosboxsvn.app --entitlements ./src/dosboxsvn.app/contents/entitlements.plist ||  error codesign
 
 
 	# make disk image
 	mkdir DOSBox-Snapshot
-	CpMac -r  ./src/dosboxsvn.app ./DOSBox-Snapshot
+	cp -R  ./src/dosboxsvn.app ./DOSBox-Snapshot
 	cp ./AUTHORS ./DOSBox-Snapshot/Authors
 	cp ./COPYING ./DOSBox-Snapshot/License
 	cp ./NEWS ./DOSBox-Snapshot/News
@@ -111,6 +112,8 @@ deploy
 	# copy app to applications and file the snapshots
 	cp -R ./src/DOSBoxSVN.app /Applications/
 	cp -p Dosbox-Snapshot.dmg ~/Snapshots/dosbox/"`date +%y-%m-%d-%H%M` DOSBox$REVISION.dmg"
+	#Notarize it
+	xcrun altool --notarize-app --primary-bundle-id "com.dosbox.dmg" --username "APPLE ID" --password "PASSWORD" --file Dosbox-Snapshot.dmg
 	mv Dosbox-Snapshot.dmg ~/Snapshots/dosbox/
 
 	# "upload"
