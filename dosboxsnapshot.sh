@@ -1,4 +1,5 @@
-#!/usr/bin/env bash
+#!/bin/zsh
+emulate -LR bash
 #functions
 . ./functions.sh
 
