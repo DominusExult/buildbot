@@ -1,3 +1,4 @@
+emulate -LR bash
 #-------------headers-------------
 headermain() {
 	if [ "$1" != "" ]; then
@@ -33,23 +34,28 @@ header() {
 alias deploy='echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tdeployment\t$(tput sgr 0)"'
 
 #-------------compiler & flags-------------
-# I have simple prefixes for each OS X arch (ppc, i386, x86_64) in /opt/.
+# I have simple prefixes for each OS X arch (ppc, i386, x86_64, arm64) in /opt/.
 # Even though one could use one universal prefix with all libs "lipo'ed"
 # it's easier to maintain different prefixes as they can have different 
 # problems when updating the libs.
 # For building ppc, I'm using the old Xcode 3.x stored in /opt/xcode3.
 # For 32/64bit intel, I'm just using clang that comes with current Xcode.
-# My SDK collection (10.4-10.11) is stored in /opt/SDKs
+# My SDK collection (10.4-11.0) is stored in /opt/SDKs
 
 flags() {
-	if  [ "$ARCH" = "" ]; then
+	SYSARCH=$(uname -m)
+	if  [ "$ARCH" = "" ] && [ "$SYSARCH" = "arm64" ]; then
+		ARCH=arm64
+		SDK=11.0
+		DEPLOYMENT=11.0
+	elif [ "$ARCH" = "" ] && [ "$SYSARCH" = "x86_64" ]; then
 		ARCH=x86_64
-		SDK=10.11
+		SDK=10.14
 		DEPLOYMENT=10.11
 	fi
 
 	export PKG_CONFIG_PATH=/opt/$ARCH/lib/pkgconfig
-	export PKG_CONFIG=/opt/$ARCH/bin/pkg-config
+	export PKG_CONFIG=/opt/$SYSARCH/bin/pkg-config
 
 	if [ "$ARCH" = "i386" ]; then
 		OPTARCH='-arch i386 -m32 -msse -msse2 -O2 '
@@ -58,6 +64,8 @@ flags() {
 		export PKG_CONFIG=/opt/x86_64/bin/pkg-config
 	elif  [ "$ARCH" = "x86_64" ]; then
 		OPTARCH='-m64 -msse -msse2 -O2 '
+	elif  [ "$ARCH" = "arm64" ]; then
+		OPTARCH='-O2 '
 	fi
 	OPT=' -w -force_cpusubtype_ALL '$OPTARCH
 	SDK=' -isysroot /opt/SDKs/MacOSX'$SDK'.sdk -mmacosx-version-min='$DEPLOYMENT' '
@@ -86,12 +94,9 @@ gcc() {
 			export CXX='/opt/xcode3/usr/bin/g++-4.2 -arch '$ARCH
 			export LD="/opt/xcode3/usr/bin/ld"
 			export RANLIB="/opt/xcode3/usr/bin/ranlib.old"
-		elif [ "$1" = "arch" ]; then
+		else
 			export CC='/usr/bin/clang -arch '$ARCH
 			export CXX='/usr/bin/clang++ -arch '$ARCH
-		else
-			export CC='/usr/bin/clang'
-			export CXX='/usr/bin/clang++'
 		fi
 	else
 		error gcc function
@@ -115,8 +120,16 @@ config() {
 		
 	if [ "$ARCH" = "ppc" ]; then
 		./configure --host=powerpc-apple-darwin $CONF_OPT $CONF_ARGS || error $ARCH configure
+
 	elif [ "$ARCH" = "i386" ]; then
-		./configure --build=i386-apple-darwin $CONF_OPT $CONF_ARGS || error $ARCH configure
+		./configure --host=i386-apple-darwin $CONF_OPT $CONF_ARGS || error $ARCH configure
+
+	elif [[ "$ARCH" = "arm64" ]] && [[ "$SYSARCH" != "arm64" ]]; then
+		./configure --host=arm-apple-darwin $CONF_OPT $CONF_ARGS || error $ARCH configure
+
+	elif [[ "$ARCH" = "x86_64" ]] && [[ "$SYSARCH" != "x86_64" ]]; then
+		./configure --host=x86_64-apple-darwin $CONF_OPT $CONF_ARGS || error $ARCH configure
+
 	else [ "$?" != "0" ]
 		./configure $CONF_OPT $CONF_ARGS || error $ARCH configure
 	fi
@@ -214,4 +227,6 @@ echoall() {
 	echo "LD="$LD
 	echo "AR="$AR
 	echo "RANLIB="$RANLIB
+	echo "CONF_OPT="$CONF_OPT 
+	echo "CONF_ARGS="$CONF_ARGS
 }
