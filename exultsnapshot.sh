@@ -66,13 +66,19 @@ deploy
 	#bundle
 	make -s bundle || error bundle
 
-	#image, upload
+	#image
 	export REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"
 	make -s osxdmg || error disk image
 
+	#Notarize it
+	xcrun altool --notarize-app --primary-bundle-id "info.exult.dmg" --username "APPLE ID" --password "PASSWORD" --file Exult-snapshot.dmg || error notarization
+
+	#file it
 	cp -p Exult-snapshot.dmg ~/Snapshots/exult/"`date +%y-%m-%d-%H%M` Exult$REVISION.dmg"
 	mv Exult-snapshot.dmg ~/Snapshots/exult/
 	cp -R Exult.app /Applications/
+
+	#upload
 	#scp -p -i ~/.ssh/id_dsa ~/Snapshots/exult/Exult-snapshot.dmg $USER,exult@web.sourceforge.net:htdocs/snapshots/Exult-snapshot.dmg || error Upload
 } 2>&1 | teelog -a ; pipestatus || return
 
