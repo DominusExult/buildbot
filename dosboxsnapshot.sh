@@ -11,10 +11,28 @@ cd ~/Code/snapshots/dosbox
 #configure options for all arches
 CONF_OPT='-q --disable-sdltest --disable-alsatest'
 
+#arm64
+header arm64
+ARCH=arm64
+SDK=11.0
+DEPLOYMENT=11.0
+flags
+gcc
+autogen
+CONF_ARGS="--prefix=/opt/$ARCH"
+{
+	config
+	patch -p0 -i ~/code/sh/dosbox-patches/arm64.diff > /dev/null ||  error arm64 patch
+	makes
+	/usr/bin/strip ./src/dosbox -o ./src/dosbox_arm64 ||  error $ARCH strip
+} 2>&1 | teelog ; pipestatus || return
+
+make -s distclean > /dev/null
+
 #x86_64
 header x86_64
 ARCH=x86_64
-SDK=10.11
+SDK=10.14
 DEPLOYMENT=10.10
 flags
 gcc
@@ -67,7 +85,7 @@ CONF_ARGS="--prefix=/opt/$ARCH"
 deploy
 {
 	# make fat build
-	lipo -create -arch x86_64 ./src/dosbox_x86_64 -arch i386 ./src/dosbox_i386 -arch ppc ./src/dosbox_ppc -output ./src/DOSBox  ||  error lipo
+	lipo -create -arch arm64 ./src/dosbox_arm64 -arch x86_64 ./src/dosbox_x86_64 -arch i386 ./src/dosbox_i386 -arch ppc ./src/dosbox_ppc -output ./src/DOSBox  ||  error lipo
 
 	# bundle
 	cp ./src/DOSBox ./src/dosboxsvn.app/contents/MacOS/DOSBox ||  error bundle
@@ -104,4 +122,5 @@ deploy
 make -s distclean > /dev/null
 rm -r DOSBox-Snapshot
 success
-cd ~/code/sh;  .  dosboxsdl2snapshot.sh
+#SDL2 builds are broken atm
+#cd ~/code/sh;  .  dosboxsdl2snapshot.sh
