@@ -1,4 +1,3 @@
-emulate -LR bash
 #-------------headers-------------
 headermain() {
 	if [ "$1" != "" ]; then
