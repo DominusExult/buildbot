@@ -6,7 +6,10 @@ headermain DOSBOX
 
 
 cd ~/Code/snapshots/dosbox
-/usr/bin/svn update --depth=infinity 2> >(teelog >&2) || error SVN update
+
+# update svn
+#svn is no longer included in macOS 10.15+ so you need to provide your own and make an alias for that in your environment
+svn update --depth=infinity 2> >(teelog >&2) || error SVN update
 
 #configure options for all arches
 CONF_OPT='-q --disable-sdltest --disable-alsatest'

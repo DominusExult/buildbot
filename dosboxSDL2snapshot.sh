@@ -6,8 +6,10 @@ headermain DOSBOX SDL2
 
 
 cd ~/Code/snapshots/dosboxSDL2
-/usr/bin/svn  revert . -R > /dev/null 2> >(teelog >&2) || error SVN revert
-/usr/bin/svn update --depth=infinity 2> >(teelog >&2) || error SVN update
+# revert and update svn
+#svn is no longer included in macOS 10.15+ so you need to provide your own and make an alias for that in your environment
+svn  revert . -R > /dev/null 2> >(teelog >&2) || error SVN revert
+svn update --depth=infinity 2> >(teelog >&2) || error SVN update
 patch -p0 -i ~/code/sh/dosbox-patches/SDL2new.diff > /dev/null 2> >(teelog >&2) || error SDL2 patch
 
 #configure options for all arches
