@@ -150,10 +150,12 @@ build() {
 
 #-------------Error handling-------------
 #trap CTRL-C and do something but it's not working yet when in teelog function
-#trap ctrl_c SIGINT
-#ctrl_c() {
-#	echo "** Trapped CTRL-C"
-#}
+:'
+trap ctrl_c SIGINT
+ctrl_c() {
+	echo "** Trapped CTRL-C"
+}
+'
 
 mailresult() {
 	#send the logfile to mail address ERRORMAIL - define somewhere
