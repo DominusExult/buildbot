@@ -118,19 +118,19 @@ config() {
 	fi
 		
 	if [ "$ARCH" = "ppc" ]; then
-		./configure --host=powerpc-apple-darwin $CONF_OPT $CONF_ARGS || error $ARCH configure
+		./configure --host=powerpc-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
 
 	elif [ "$ARCH" = "i386" ]; then
-		./configure --host=i386-apple-darwin $CONF_OPT $CONF_ARGS || error $ARCH configure
+		./configure --host=i386-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
 
 	elif [[ "$ARCH" = "arm64" ]] && [[ "$SYSARCH" != "arm64" ]]; then
-		./configure --host=arm-apple-darwin $CONF_OPT $CONF_ARGS || error $ARCH configure
+		./configure --host=arm-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
 
 	elif [[ "$ARCH" = "x86_64" ]] && [[ "$SYSARCH" != "x86_64" ]]; then
-		./configure --host=x86_64-apple-darwin $CONF_OPT $CONF_ARGS || error $ARCH configure
+		./configure --host=x86_64-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
 
 	else [ "$?" != "0" ]
-		./configure $CONF_OPT $CONF_ARGS || error $ARCH configure
+		./configure ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
 	fi
 }
 
@@ -197,7 +197,7 @@ success () {
 }
 
 pipestatus() {
-	local S=("${PIPESTATUS[@]}")
+	local S=("${pipestatus[@]}")
 	if test -n "$*"
 	then test "$*" = "${S[*]}"
 	else ! [[ "${S[@]}" =~ [^0\ ] ]]

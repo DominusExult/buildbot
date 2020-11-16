@@ -1,5 +1,4 @@
 #!/bin/zsh
-emulate -LR bash
 DIE=0
 function error_exit
 {

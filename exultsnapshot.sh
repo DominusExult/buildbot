@@ -1,4 +1,4 @@
-#!/bin/zsh --emulate sh
+#!/bin/zsh 
 #functions
 . ./functions.sh
 
