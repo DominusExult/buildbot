@@ -50,7 +50,7 @@ flags() {
 	elif [ "$ARCH" = "" ] && [ "$SYSARCH" = "x86_64" ]; then
 		ARCH=x86_64
 		SDK=10.14
-		DEPLOYMENT=10.11
+		DEPLOYMENT=10.10
 	fi
 
 	export PKG_CONFIG_PATH=/opt/$ARCH/lib/pkgconfig
