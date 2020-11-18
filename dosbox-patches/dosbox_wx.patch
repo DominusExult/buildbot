@@ -758,7 +758,7 @@ Index: src/cpu/cache.h
 +#if (C_HAVE_SHMEM)
 +				strcpy(tmpfile, "DOSBoxXXXXXX");
 +				mktemp(tmpfile);
-+				memfd = shm_open(tmpfile, O_RDWR|O_CREAT|O_EXCL, 0700);
++				memfd = shm_open(tmpfile, O_RDWR|O_CREAT|O_EXCL, 0600);
 +				if (memfd != -1) {
 +					shm_unlink(tmpfile);
 +					break;
