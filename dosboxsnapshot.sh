@@ -150,7 +150,7 @@ deploy
 
 # cleanup
 make -s distclean > /dev/null
-rm -r $(dmg_name)
+rm -r $dmg_name
 success
 # SDL2 builds are broken atm
 #cd ~/code/sh;  .  dosboxsdl2snapshot.sh
