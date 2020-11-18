@@ -1,0 +1,2852 @@
+Index: configure.ac
+===================================================================
+--- configure.ac	(revision 4392)
++++ configure.ac	(working copy)
+@@ -322,6 +322,16 @@
+     c_targetcpu="arm"
+     c_unalignedmemory=yes
+     ;;
++   arm)
++	AC_MSG_CHECKING([windowing system])
++	case "$host_os" in
++		darwin*)
++    		AC_DEFINE(C_TARGETCPU,ARMV8LE)
++   	 		AC_MSG_RESULT(ARMv8 Little Endian 64-bit)
++    		c_targetcpu="arm"
++    		c_unalignedmemory=yes
++		esac
++    ;;
+    *)
+     AC_DEFINE(C_TARGETCPU,UNKNOWN)
+     AC_MSG_RESULT(unknown)
+@@ -575,11 +585,12 @@
+   AC_MSG_WARN([Can't find libSDL_sound, libSDL_sound support disabled])
+ fi
+ 
+-dnl Check for mprotect. Needed for 64 bits linux 
+-AH_TEMPLATE(C_HAVE_MPROTECT,[Define to 1 if you have the mprotect function])
+-AC_CHECK_HEADER([sys/mman.h], [
+-AC_CHECK_FUNC([mprotect],[AC_DEFINE(C_HAVE_MPROTECT,1)])
+-])
++dnl Check for mmap. Needed for dynamic cores
++AH_TEMPLATE(C_HAVE_MMAP,[Define to 1 if you have the mmap function])
++AC_CHECK_HEADER([sys/mman.h],have_mman_h=yes,)
++if test x$have_mman_h = xyes ; then
++    AC_DEFINE(C_HAVE_MMAP,1)
++fi
+ 
+ dnl Check for realpath. Used on Linux
+ AC_CHECK_FUNCS([realpath])
+Index: src/cpu/Makefile.am
+===================================================================
+--- src/cpu/Makefile.am	(revision 4392)
++++ src/cpu/Makefile.am	(working copy)
+@@ -2,6 +2,7 @@
+ AM_CPPFLAGS = -I$(top_srcdir)/include
+ 
+ noinst_LIBRARIES = libcpu.a
++noinst_HEADERS = cache.h 
+ libcpu_a_SOURCES = callback.cpp cpu.cpp flags.cpp modrm.cpp modrm.h core_full.cpp instructions.h	\
+ 		   paging.cpp lazyflags.h core_normal.cpp core_simple.cpp core_prefetch.cpp \
+ 		   core_dyn_x86.cpp core_dynrec.cpp
+Index: src/cpu/cache.h
+===================================================================
+--- src/cpu/cache.h	(nonexistent)
++++ src/cpu/cache.h	(working copy)
+@@ -0,0 +1,796 @@
++/*
++ *  Copyright (C) 2002-2019  The DOSBox Team
++ *
++ *  This program is free software; you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License as published by
++ *  the Free Software Foundation; either version 2 of the License, or
++ *  (at your option) any later version.
++ *
++ *  This program is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License along
++ *  with this program; if not, write to the Free Software Foundation, Inc.,
++ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
++ */
++
++#if defined (WIN32)
++#include <windows.h>
++#include <winbase.h>
++#endif
++
++#if (C_HAVE_MMAP)
++#include <unistd.h>
++#include <sys/mman.h>
++#include <limits.h>
++#if (C_HAVE_SHMEM)
++#include <fcntl.h>
++#endif
++#endif /* C_HAVE_MMAP */
++
++class CodePageHandlerDynRec;	// forward
++
++// basic cache block representation
++class CacheBlockDynRec {
++public:
++	void Clear(void);
++	// link this cache block to another block, index specifies the code
++	// path (always zero for unconditional links, 0/1 for conditional ones
++	void LinkTo(Bitu index,CacheBlockDynRec * toblock) {
++		assert(toblock);
++		link[index].to=toblock;
++		link[index].next=toblock->link[index].from;	// set target block
++		toblock->link[index].from=this;				// remember who links me
++	}
++	struct {
++		Bit16u start,end;		// where in the page is the original code
++		CodePageHandlerDynRec * handler;			// page containing this code
++	} page;
++	struct {
++		const Bit8u * start;			// where in the cache are we (exec ptr)
++		Bitu size;
++		CacheBlockDynRec * next;
++		// writemap masking maskpointer/start/length
++		// to allow holes in the writemap
++		Bit8u * wmapmask;
++		Bit16u maskstart;
++		Bit16u masklen;
++	} cache;
++	struct {
++		Bitu index;
++		CacheBlockDynRec * next;
++	} hash;
++	struct {
++		CacheBlockDynRec * to;		// this block can transfer control to the to-block
++		CacheBlockDynRec * next;
++		CacheBlockDynRec * from;	// the from-block can transfer control to this block
++	} link[2];	// maximum two links (conditional jumps)
++	CacheBlockDynRec * crossblock;
++};
++
++static Bitu cache_code_exec_off;
++
++/* overloaded class that handles translation between write<->exec pointers
++ * cast to/from signed or const when using exec pointer
++ * cast to/from unsigned or non-const when using write pointer
++ */
++class cache_pos {
++public:
++	cache_pos() {}
++	cache_pos(const Bit8u* p) {
++		wpos = (Bit8u*)(p-cache_code_exec_off);
++	}
++
++	cache_pos& operator=(const Bit8u* p) {
++		wpos = (Bit8u*)(p-cache_code_exec_off);
++		return *this;
++	}
++	cache_pos& operator=(Bit8u* p) {
++		wpos = p;
++		return *this;
++	}
++	Bit8u* operator+=(int i) {
++		return wpos+=i;
++	}
++	Bit8u* operator+(int i) {
++		return wpos + i;
++	}
++	Bit8u* operator-(int i) {
++		return wpos - i;
++	}
++	operator const Bit8u*() {
++		return wpos+cache_code_exec_off;
++	}
++	operator Bit8u*() {
++		return wpos;
++	}
++	operator Bit16u*() {
++		return (Bit16u*)wpos;
++	}
++	operator Bit32u*() {
++		return (Bit32u*)wpos;
++	}
++	operator Bit64u*() {
++		return (Bit64u*)wpos;
++	}
++	operator Bits() {
++		return (Bits)(wpos+cache_code_exec_off);
++	}
++	operator Bitu() {
++		return (Bitu)wpos;
++	}
++private:
++	Bit8u* wpos; // write pointer
++};
++
++static struct {
++	struct {
++		CacheBlockDynRec * first;		// the first cache block in the list
++		CacheBlockDynRec * active;		// the current cache block
++		CacheBlockDynRec * free;		// pointer to the free list
++		CacheBlockDynRec * running;		// the last block that was entered for execution
++	} block;
++	cache_pos pos;		// position in the cache block (smart pointer)
++	CodePageHandlerDynRec * free_pages;		// pointer to the free list
++	CodePageHandlerDynRec * used_pages;		// pointer to the list of used pages
++	CodePageHandlerDynRec * last_page;		// the last used page
++} cache;
++
++
++// cache memory pointers, to be malloc'd later
++static const Bit8u * cache_code_start_ptr=NULL;
++static const Bit8u * cache_code=NULL;
++static const Bit8u * cache_code_link_blocks=NULL;
++
++static CacheBlockDynRec * cache_blocks=NULL;
++static CacheBlockDynRec link_blocks[2];		// default linking (specially marked)
++
++
++// the CodePageHandlerDynRec class provides access to the contained
++// cache blocks and intercepts writes to the code for special treatment
++class CodePageHandlerDynRec : public PageHandler {
++public:
++	CodePageHandlerDynRec() {
++		invalidation_map=NULL;
++	}
++
++	void SetupAt(Bitu _phys_page,PageHandler * _old_pagehandler) {
++		// initialize this codepage handler
++		phys_page=_phys_page;
++		// save the old pagehandler to provide direct read access to the memory,
++		// and to be able to restore it later on
++		old_pagehandler=_old_pagehandler;
++
++		// adjust flags
++		flags=old_pagehandler->flags|(cpu.code.big ? PFLAG_HASCODE32:PFLAG_HASCODE16);
++		flags&=~PFLAG_WRITEABLE;
++
++		active_blocks=0;
++		active_count=16;
++
++		// initialize the maps with zero (no cache blocks as well as code present)
++		memset(&hash_map,0,sizeof(hash_map));
++		memset(&write_map,0,sizeof(write_map));
++		if (invalidation_map!=NULL) {
++			free(invalidation_map);
++			invalidation_map=NULL;
++		}
++	}
++
++	// clear out blocks that contain code which has been modified
++	bool InvalidateRange(Bitu start,Bitu end) {
++		Bits index=1+(end>>DYN_HASH_SHIFT);
++		bool is_current_block=false;	// if the current block is modified, it has to be exited as soon as possible
++
++		Bit32u ip_point=SegPhys(cs)+reg_eip;
++		ip_point=(PAGING_GetPhysicalPage(ip_point)-(phys_page<<12))+(ip_point&0xfff);
++		while (index>=0) {
++			Bitu map=0;
++			// see if there is still some code in the range
++			for (Bitu count=start;count<=end;count++) map+=write_map[count];
++			if (!map) return is_current_block;	// no more code, finished
++
++			CacheBlockDynRec * block=hash_map[index];
++			while (block) {
++				CacheBlockDynRec * nextblock=block->hash.next;
++				// test if this block is in the range
++				if (start<=block->page.end && end>=block->page.start) {
++					if (ip_point<=block->page.end && ip_point>=block->page.start) is_current_block=true;
++					block->Clear();		// clear the block, decrements the write_map accordingly
++				}
++				block=nextblock;
++			}
++			index--;
++		}
++		return is_current_block;
++	}
++
++	// the following functions will clean all cache blocks that are invalid now due to the write
++	void writeb(PhysPt addr,Bitu val){
++		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return;
++		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
++			E_Exit("wb:non-readable code page found that is no ROM page");
++		}
++		addr&=4095;
++		if (host_readb(hostmem+addr)==(Bit8u)val) return;
++		host_writeb(hostmem+addr,val);
++		// see if there's code where we are writing to
++		if (!write_map[addr]) {
++			if (active_blocks) return;		// still some blocks in this page
++			active_count--;
++			if (!active_count) Release();	// delay page releasing until active_count is zero
++			return;
++		} else if (!invalidation_map) {
++			invalidation_map=(Bit8u*)malloc(4096);
++			memset(invalidation_map,0,4096);
++		}
++		invalidation_map[addr]++;
++		InvalidateRange(addr,addr);
++	}
++	void writew(PhysPt addr,Bitu val){
++		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return;
++		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
++			E_Exit("wb:non-readable code page found that is no ROM page");
++		}
++		addr&=4095;
++		if (host_readw(hostmem+addr)==(Bit16u)val) return;
++		host_writew(hostmem+addr,val);
++		// see if there's code where we are writing to
++		if (!host_readw(&write_map[addr])) {
++			if (active_blocks) return;		// still some blocks in this page
++			active_count--;
++			if (!active_count) Release();	// delay page releasing until active_count is zero
++			return;
++		} else if (!invalidation_map) {
++			invalidation_map=(Bit8u*)malloc(4096);
++			memset(invalidation_map,0,4096);
++		}
++#if !defined(C_UNALIGNED_MEMORY)
++		host_writew(&invalidation_map[addr],
++			host_readw(&invalidation_map[addr])+0x101);
++#else
++		(*(Bit16u*)&invalidation_map[addr])+=0x101;
++#endif
++		InvalidateRange(addr,addr+1);
++	}
++	void writed(PhysPt addr,Bitu val){
++		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return;
++		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
++			E_Exit("wb:non-readable code page found that is no ROM page");
++		}
++		addr&=4095;
++		if (host_readd(hostmem+addr)==(Bit32u)val) return;
++		host_writed(hostmem+addr,val);
++		// see if there's code where we are writing to
++		if (!host_readd(&write_map[addr])) {
++			if (active_blocks) return;		// still some blocks in this page
++			active_count--;
++			if (!active_count) Release();	// delay page releasing until active_count is zero
++			return;
++		} else if (!invalidation_map) {
++			invalidation_map=(Bit8u*)malloc(4096);
++			memset(invalidation_map,0,4096);
++		}
++#if !defined(C_UNALIGNED_MEMORY)
++		host_writed(&invalidation_map[addr],
++			host_readd(&invalidation_map[addr])+0x1010101);
++#else
++		(*(Bit32u*)&invalidation_map[addr])+=0x1010101;
++#endif
++		InvalidateRange(addr,addr+3);
++	}
++	bool writeb_checked(PhysPt addr,Bitu val) {
++		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return false;
++		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
++			E_Exit("wb:non-readable code page found that is no ROM page");
++		}
++		addr&=4095;
++		if (host_readb(hostmem+addr)==(Bit8u)val) return false;
++		// see if there's code where we are writing to
++		if (!write_map[addr]) {
++			if (!active_blocks) {
++				// no blocks left in this page, still delay the page releasing a bit
++				active_count--;
++				if (!active_count) Release();
++			}
++		} else {
++			if (!invalidation_map) {
++				invalidation_map=(Bit8u*)malloc(4096);
++				memset(invalidation_map,0,4096);
++			}
++			invalidation_map[addr]++;
++			if (InvalidateRange(addr,addr)) {
++				cpu.exception.which=SMC_CURRENT_BLOCK;
++				return true;
++			}
++		}
++		host_writeb(hostmem+addr,val);
++		return false;
++	}
++	bool writew_checked(PhysPt addr,Bitu val) {
++		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return false;
++		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
++			E_Exit("wb:non-readable code page found that is no ROM page");
++		}
++		addr&=4095;
++		if (host_readw(hostmem+addr)==(Bit16u)val) return false;
++		// see if there's code where we are writing to
++		if (!host_readw(&write_map[addr])) {
++			if (!active_blocks) {
++				// no blocks left in this page, still delay the page releasing a bit
++				active_count--;
++				if (!active_count) Release();
++			}
++		} else {
++			if (!invalidation_map) {
++				invalidation_map=(Bit8u*)malloc(4096);
++				memset(invalidation_map,0,4096);
++			}
++#if !defined(C_UNALIGNED_MEMORY)
++			host_writew(&invalidation_map[addr],
++				host_readw(&invalidation_map[addr])+0x101);
++#else
++			(*(Bit16u*)&invalidation_map[addr])+=0x101;
++#endif
++			if (InvalidateRange(addr,addr+1)) {
++				cpu.exception.which=SMC_CURRENT_BLOCK;
++				return true;
++			}
++		}
++		host_writew(hostmem+addr,val);
++		return false;
++	}
++	bool writed_checked(PhysPt addr,Bitu val) {
++		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return false;
++		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
++			E_Exit("wb:non-readable code page found that is no ROM page");
++		}
++		addr&=4095;
++		if (host_readd(hostmem+addr)==(Bit32u)val) return false;
++		// see if there's code where we are writing to
++		if (!host_readd(&write_map[addr])) {
++			if (!active_blocks) {
++				// no blocks left in this page, still delay the page releasing a bit
++				active_count--;
++				if (!active_count) Release();
++			}
++		} else {
++			if (!invalidation_map) {
++				invalidation_map=(Bit8u*)malloc(4096);
++				memset(invalidation_map,0,4096);
++			}
++#if !defined(C_UNALIGNED_MEMORY)
++			host_writed(&invalidation_map[addr],
++				host_readd(&invalidation_map[addr])+0x1010101);
++#else
++			(*(Bit32u*)&invalidation_map[addr])+=0x1010101;
++#endif
++			if (InvalidateRange(addr,addr+3)) {
++				cpu.exception.which=SMC_CURRENT_BLOCK;
++				return true;
++			}
++		}
++		host_writed(hostmem+addr,val);
++		return false;
++	}
++
++    // add a cache block to this page and note it in the hash map
++	void AddCacheBlock(CacheBlockDynRec * block) {
++		Bitu index=1+(block->page.start>>DYN_HASH_SHIFT);
++		block->hash.next=hash_map[index];	// link to old block at index from the new block
++		block->hash.index=index;
++		hash_map[index]=block;				// put new block at hash position
++		block->page.handler=this;
++		active_blocks++;
++	}
++	// there's a block whose code started in a different page
++    void AddCrossBlock(CacheBlockDynRec * block) {
++		block->hash.next=hash_map[0];
++		block->hash.index=0;
++		hash_map[0]=block;
++		block->page.handler=this;
++		active_blocks++;
++	}
++	// remove a cache block
++	void DelCacheBlock(CacheBlockDynRec * block) {
++		active_blocks--;
++		active_count=16;
++		CacheBlockDynRec * * bwhere=&hash_map[block->hash.index];
++		while (*bwhere!=block) {
++			bwhere=&((*bwhere)->hash.next);
++			//Will crash if a block isn't found, which should never happen.
++		}
++		*bwhere=block->hash.next;
++
++		// remove the cleared block from the write map
++		if (GCC_UNLIKELY(block->cache.wmapmask!=NULL)) {
++			// first part is not influenced by the mask
++			for (Bitu i=block->page.start;i<block->cache.maskstart;i++) {
++				if (write_map[i]) write_map[i]--;
++			}
++			Bitu maskct=0;
++			// last part sticks to the writemap mask
++			for (Bitu i=block->cache.maskstart;i<=block->page.end;i++,maskct++) {
++				if (write_map[i]) {
++					// only adjust writemap if it isn't masked
++					if ((maskct>=block->cache.masklen) || (!block->cache.wmapmask[maskct])) write_map[i]--;
++				}
++			}
++			free(block->cache.wmapmask);
++			block->cache.wmapmask=NULL;
++		} else {
++			for (Bitu i=block->page.start;i<=block->page.end;i++) {
++				if (write_map[i]) write_map[i]--;
++			}
++		}
++	}
++
++	void Release(void) {
++		MEM_SetPageHandler(phys_page,1,old_pagehandler);	// revert to old handler
++		PAGING_ClearTLB();
++
++		// remove page from the lists
++		if (prev) prev->next=next;
++		else cache.used_pages=next;
++		if (next) next->prev=prev;
++		else cache.last_page=prev;
++		next=cache.free_pages;
++		cache.free_pages=this;
++		prev=0;
++	}
++	void ClearRelease(void) {
++		// clear out all cache blocks in this page
++		for (Bitu index=0;index<(1+DYN_PAGE_HASH);index++) {
++			CacheBlockDynRec * block=hash_map[index];
++			while (block) {
++				CacheBlockDynRec * nextblock=block->hash.next;
++				block->page.handler=0;			// no need, full clear
++				block->Clear();
++				block=nextblock;
++			}
++		}
++		Release();	// now can release this page
++	}
++
++	CacheBlockDynRec * FindCacheBlock(Bitu start) {
++		CacheBlockDynRec * block=hash_map[1+(start>>DYN_HASH_SHIFT)];
++		// see if there's a cache block present at the start address
++		while (block) {
++			if (block->page.start==start) return block;	// found
++			block=block->hash.next;
++		}
++		return 0;	// none found
++	}
++
++	HostPt GetHostReadPt(Bitu phys_page) {
++		hostmem=old_pagehandler->GetHostReadPt(phys_page);
++		return hostmem;
++	}
++	HostPt GetHostWritePt(Bitu phys_page) {
++		return GetHostReadPt( phys_page );
++	}
++public:
++	// the write map, there are write_map[i] cache blocks that cover the byte at address i
++	Bit8u write_map[4096];
++	Bit8u * invalidation_map;
++	CodePageHandlerDynRec * next, * prev;	// page linking
++private:
++	PageHandler * old_pagehandler;
++
++	// hash map to quickly find the cache blocks in this page
++	CacheBlockDynRec * hash_map[1+DYN_PAGE_HASH];
++
++	Bitu active_blocks;		// the number of cache blocks in this page
++	Bitu active_count;		// delaying parameter to not immediately release a page
++	HostPt hostmem;
++	Bitu phys_page;
++};
++
++
++static INLINE void cache_addunusedblock(CacheBlockDynRec * block) {
++	// block has become unused, add it to the freelist
++	block->cache.next=cache.block.free;
++	cache.block.free=block;
++}
++
++static CacheBlockDynRec * cache_getblock(void) {
++	// get a free cache block and advance the free pointer
++	CacheBlockDynRec * ret=cache.block.free;
++	if (!ret) E_Exit("Ran out of CacheBlocks" );
++	cache.block.free=ret->cache.next;
++	ret->cache.next=0;
++	return ret;
++}
++
++void CacheBlockDynRec::Clear(void) {
++	Bitu ind;
++	// check if this is not a cross page block
++	if (hash.index) for (ind=0;ind<2;ind++) {
++		CacheBlockDynRec * fromlink=link[ind].from;
++		link[ind].from=0;
++		while (fromlink) {
++			CacheBlockDynRec * nextlink=fromlink->link[ind].next;
++			// clear the next-link and let the block point to the standard linkcode
++			fromlink->link[ind].next=0;
++			fromlink->link[ind].to=&link_blocks[ind];
++
++			fromlink=nextlink;
++		}
++		if (link[ind].to!=&link_blocks[ind]) {
++			// not linked to the standard linkcode, find the block that links to this block
++			CacheBlockDynRec * * wherelink=&link[ind].to->link[ind].from;
++			while (*wherelink != this && *wherelink) {
++				wherelink = &(*wherelink)->link[ind].next;
++			}
++			// now remove the link
++			if(*wherelink)
++				*wherelink = (*wherelink)->link[ind].next;
++			else {
++				LOG(LOG_CPU,LOG_ERROR)("Cache anomaly. please investigate");
++			}
++		}
++	} else
++		cache_addunusedblock(this);
++	if (crossblock) {
++		// clear out the crossblock (in the page before) as well
++		crossblock->crossblock=0;
++		crossblock->Clear();
++		crossblock=0;
++	}
++	if (page.handler) {
++		// clear out the code page handler
++		page.handler->DelCacheBlock(this);
++		page.handler=0;
++	}
++	if (cache.wmapmask){
++		free(cache.wmapmask);
++		cache.wmapmask=NULL;
++	}
++}
++
++
++static CacheBlockDynRec * cache_openblock(void) {
++	CacheBlockDynRec * block=cache.block.active;
++	// check for enough space in this block
++	Bitu size=block->cache.size;
++	CacheBlockDynRec * nextblock=block->cache.next;
++	if (block->page.handler)
++		block->Clear();
++	// block size must be at least CACHE_MAXSIZE
++	while (size<CACHE_MAXSIZE) {
++		if (!nextblock)
++			goto skipresize;
++		// merge blocks
++		size+=nextblock->cache.size;
++		CacheBlockDynRec * tempblock=nextblock->cache.next;
++		if (nextblock->page.handler)
++			nextblock->Clear();
++		// block is free now
++		cache_addunusedblock(nextblock);
++		nextblock=tempblock;
++	}
++skipresize:
++	// adjust parameters and open this block
++	block->cache.size=size;
++	block->cache.next=nextblock;
++	cache.pos=block->cache.start;
++	return block;
++}
++
++static void cache_closeblock(void) {
++	CacheBlockDynRec * block=cache.block.active;
++	// links point to the default linking code
++	block->link[0].to=&link_blocks[0];
++	block->link[1].to=&link_blocks[1];
++	block->link[0].from=0;
++	block->link[1].from=0;
++	block->link[0].next=0;
++	block->link[1].next=0;
++	// close the block with correct alignment
++	Bitu written=(Bitu)(cache.pos-block->cache.start);
++	if (written>block->cache.size) {
++		if (!block->cache.next) {
++			if (written>block->cache.size+CACHE_MAXSIZE) E_Exit("CacheBlock overrun 1 %" sBitfs(d),written-block->cache.size);
++		} else E_Exit("CacheBlock overrun 2 written %" sBitfs(d) " size %" sBitfs(d),written,block->cache.size);
++	} else {
++		Bitu new_size;
++		Bitu left=block->cache.size-written;
++		// smaller than cache align then don't bother to resize
++		if (left>CACHE_ALIGN) {
++			new_size=((written-1)|(CACHE_ALIGN-1))+1;
++			CacheBlockDynRec * newblock=cache_getblock();
++			// align block now to CACHE_ALIGN
++			newblock->cache.start=block->cache.start+new_size;
++			newblock->cache.size=block->cache.size-new_size;
++			newblock->cache.next=block->cache.next;
++			block->cache.next=newblock;
++			block->cache.size=new_size;
++		}
++	}
++	// advance the active block pointer
++	if (!block->cache.next || (block->cache.next->cache.start>(cache_code_start_ptr + CACHE_TOTAL - CACHE_MAXSIZE))) {
++//		LOG_MSG("Cache full restarting");
++		cache.block.active=cache.block.first;
++	} else {
++		cache.block.active=block->cache.next;
++	}
++}
++
++
++// place an 8bit value into the cache
++static INLINE void cache_addb(Bit8u val) {
++	*(Bit8u*)cache.pos=val;
++	cache.pos+=1;
++}
++
++// place a 16bit value into the cache
++static INLINE void cache_addw(Bit16u val) {
++	*(Bit16u*)cache.pos=val;
++	cache.pos+=2;
++}
++
++// place a 32bit value into the cache
++static INLINE void cache_addd(Bit32u val) {
++	*(Bit32u*)cache.pos=val;
++	cache.pos+=4;
++}
++
++// place a 64bit value into the cache
++static INLINE void cache_addq(Bit64u val) {
++	*(Bit64u*)cache.pos=val;
++	cache.pos+=8;
++}
++
++/* Define temporary pagesize so the mmap case and the regular case share as much code as possible */
++#if defined(PAGESIZE)
++#define PAGESIZE_TEMP PAGESIZE
++#else
++#define PAGESIZE_TEMP 4096
++#endif
++
++#define CACHE_ALLOC_SIZE (CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP)
++
++static bool cache_initialized = false;
++
++// returns new cache base (for link blocks) or NULL if nothing was allocated
++static const Bit8u* cache_init(bool enable) {
++	Bits i;
++	if (enable) {
++		// see if cache is already initialized
++		if (cache_initialized) return NULL;
++		cache_initialized = true;
++		if (cache_blocks == NULL) {
++			// allocate the cache blocks memory
++			cache_blocks=(CacheBlockDynRec*)malloc(CACHE_BLOCKS*sizeof(CacheBlockDynRec));
++			if(!cache_blocks) E_Exit("Allocating cache_blocks has failed");
++			memset(cache_blocks,0,sizeof(CacheBlockDynRec)*CACHE_BLOCKS);
++			cache.block.free=&cache_blocks[0];
++			// initialize the cache blocks
++			for (i=0;i<CACHE_BLOCKS-1;i++) {
++				cache_blocks[i].link[0].to=(CacheBlockDynRec *)1;
++				cache_blocks[i].link[1].to=(CacheBlockDynRec *)1;
++				cache_blocks[i].cache.next=&cache_blocks[i+1];
++			}
++		}
++		if (cache_code_start_ptr==NULL) {
++			// allocate the code cache memory
++#if defined (WIN32)
++			HANDLE h = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_EXECUTE_READWRITE, 0, CACHE_ALLOC_SIZE, NULL);
++			if (h != NULL) { // CreateFileMapping() returns NULL on error, not INVALID_HANDLE_VALUE!
++				const Bit8u* write_ptr = (Bit8u*)MapViewOfFile(h, FILE_MAP_READ|FILE_MAP_WRITE, 0, 0, CACHE_ALLOC_SIZE);
++				cache_code_start_ptr = (Bit8u*)MapViewOfFile(h, FILE_MAP_READ|FILE_MAP_EXECUTE, 0, 0, CACHE_ALLOC_SIZE);
++				if (write_ptr && cache_code_start_ptr) {
++					cache_code_exec_off = (Bitu)cache_code_start_ptr - (Bitu)write_ptr;
++				} else {
++					if (write_ptr) UnmapViewOfFile(write_ptr);
++					else {
++						UnmapViewOfFile(cache_code_start_ptr);
++						cache_code_start_ptr = NULL;
++					}
++				}
++				
++				CloseHandle(h);
++			}
++			if (!cache_code_start_ptr)
++				cache_code_start_ptr=(Bit8u*)VirtualAlloc(0,CACHE_ALLOC_SIZE,MEM_COMMIT,PAGE_EXECUTE_READWRITE);
++#elif (C_HAVE_MMAP)
++			int memfd;
++			do {
++				char tmpfile[24];
++#if (C_HAVE_SHMEM)
++				strcpy(tmpfile, "DOSBoxXXXXXX");
++				mktemp(tmpfile);
++				memfd = shm_open(tmpfile, O_RDWR|O_CREAT|O_EXCL, 0700);
++				if (memfd != -1) {
++					shm_unlink(tmpfile);
++					break;
++				}
++#endif
++				// last chance: hope /tmp supports executable files!
++				strcpy(tmpfile, "/tmp/DOSBoxXXXXXX");
++				memfd = mkstemp(tmpfile);
++				if (memfd != -1) unlink(tmpfile);
++			} while (0);
++
++			if (memfd != -1) {
++				if (ftruncate(memfd, CACHE_ALLOC_SIZE) == 0) {
++					const Bit8u* write_ptr = (Bit8u*)mmap(NULL,CACHE_ALLOC_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,memfd,0);
++					cache_code_start_ptr = (Bit8u*)mmap(NULL,CACHE_ALLOC_SIZE,PROT_READ|PROT_EXEC,MAP_SHARED,memfd,0);
++					if (write_ptr!=MAP_FAILED && cache_code_start_ptr!=MAP_FAILED) {
++						cache_code_exec_off = (Bitu)cache_code_start_ptr - (Bitu)write_ptr;
++					} else {
++						if (write_ptr!=MAP_FAILED) munmap((void*)write_ptr,CACHE_ALLOC_SIZE);
++						else munmap((void*)cache_code_start_ptr,CACHE_ALLOC_SIZE);
++						cache_code_start_ptr = NULL;
++					}
++				}
++				close(memfd);
++			}
++			if (!cache_code_start_ptr) {
++				cache_code_start_ptr=(Bit8u*)mmap(NULL,CACHE_ALLOC_SIZE,PROT_READ|PROT_WRITE|PROT_EXEC,
++					MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
++				if (cache_code_start_ptr==MAP_FAILED)
++					cache_code_start_ptr=NULL;
++			}
++			
++#endif
++			if (!cache_code_start_ptr)
++				cache_code_start_ptr=(Bit8u*)malloc(CACHE_ALLOC_SIZE);
++			if(!cache_code_start_ptr) E_Exit("Allocating dynamic core cache memory failed");
++
++			// align the cache at a page boundary
++			cache_code=(Bit8u*)(((Bitu)cache_code_start_ptr + PAGESIZE_TEMP-1) & ~(PAGESIZE_TEMP-1));//Bitu is same size as a pointer.
++
++			cache_code_link_blocks=cache_code;
++			cache_code=cache_code+PAGESIZE_TEMP;
++
++			CacheBlockDynRec * block=cache_getblock();
++			cache.block.first=block;
++			cache.block.active=block;
++			block->cache.start=&cache_code[0];
++			block->cache.size=CACHE_TOTAL;
++			block->cache.next=0;						// last block in the list
++		}
++
++		cache.free_pages=0;
++		cache.last_page=0;
++		cache.used_pages=0;
++		// setup the code pages
++		for (i=0;i<CACHE_PAGES;i++) {
++			CodePageHandlerDynRec * newpage=new CodePageHandlerDynRec();
++			newpage->next=cache.free_pages;
++			cache.free_pages=newpage;
++		}
++
++		return cache_code_link_blocks;
++	}
++
++	return NULL;
++}
++
++static void cache_close(void) {
++/*	for (;;) {
++		if (cache.used_pages) {
++			CodePageHandlerDynRec * cpage=cache.used_pages;
++			CodePageHandlerDynRec * npage=cache.used_pages->next;
++			cpage->ClearRelease();
++			delete cpage;
++			cache.used_pages=npage;
++		} else break;
++	}
++	if (cache_blocks != NULL) {
++		free(cache_blocks);
++		cache_blocks = NULL;
++	}
++	if (cache_code_start_ptr != NULL) {
++		### care: under windows VirtualFree() has to be used if
++		###       VirtualAlloc was used for memory allocation
++		free(cache_code_start_ptr);
++		cache_code_start_ptr = NULL;
++	}
++	cache_code = NULL;
++	cache_code_link_blocks = NULL;
++	cache_initialized = false; */
++}
+Index: src/cpu/core_dyn_x86/Makefile.am
+===================================================================
+--- src/cpu/core_dyn_x86/Makefile.am	(revision 4392)
++++ src/cpu/core_dyn_x86/Makefile.am	(working copy)
+@@ -1,2 +1,2 @@
+-noinst_HEADERS = cache.h helpers.h decoder.h risc_x86.h risc_x64.h string.h \
++noinst_HEADERS = helpers.h decoder.h risc_x86.h risc_x64.h string.h \
+                  dyn_fpu.h dyn_fpu_dh.h
+Index: src/cpu/core_dyn_x86/cache.h
+===================================================================
+--- src/cpu/core_dyn_x86/cache.h	(revision 4392)
++++ src/cpu/core_dyn_x86/cache.h	(nonexistent)
+@@ -1,575 +0,0 @@
+-/*
+- *  Copyright (C) 2002-2020  The DOSBox Team
+- *
+- *  This program is free software; you can redistribute it and/or modify
+- *  it under the terms of the GNU General Public License as published by
+- *  the Free Software Foundation; either version 2 of the License, or
+- *  (at your option) any later version.
+- *
+- *  This program is distributed in the hope that it will be useful,
+- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- *  GNU General Public License for more details.
+- *
+- *  You should have received a copy of the GNU General Public License along
+- *  with this program; if not, write to the Free Software Foundation, Inc.,
+- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+- */
+-
+-
+-class CacheBlock {
+-public:
+-	void Clear(void);
+-	void LinkTo(Bitu index,CacheBlock * toblock) {
+-		assert(toblock);
+-		link[index].to=toblock;
+-		link[index].next=toblock->link[index].from;
+-		toblock->link[index].from=this;
+-	}
+-	struct {
+-		Bit16u start,end;				//Where the page is the original code
+-		CodePageHandler * handler;		//Page containing this code
+-	} page;
+-	struct {
+-		Bit8u * start;					//Where in the cache are we
+-		Bitu size;
+-		CacheBlock * next;
+-		Bit8u * wmapmask;
+-		Bit16u maskstart;
+-		Bit16u masklen;
+-	} cache;
+-	struct {
+-		Bitu index;
+-		CacheBlock * next;
+-	} hash;
+-	struct {
+-		CacheBlock * to;
+-		CacheBlock * next;
+-		CacheBlock * from;
+-	} link[2];
+-	CacheBlock * crossblock;
+-};
+-
+-static struct {
+-	struct {
+-		CacheBlock * first;
+-		CacheBlock * active;
+-		CacheBlock * free;
+-		CacheBlock * running;
+-	} block;
+-	Bit8u * pos;
+-	CodePageHandler * free_pages;
+-	CodePageHandler * used_pages;
+-	CodePageHandler * last_page;
+-} cache;
+-
+-static CacheBlock link_blocks[2];
+-
+-class CodePageHandler : public PageHandler {
+-public:
+-	CodePageHandler() {
+-		invalidation_map=NULL;
+-	}
+-	void SetupAt(Bitu _phys_page,PageHandler * _old_pagehandler) {
+-		phys_page=_phys_page;
+-		old_pagehandler=_old_pagehandler;
+-		flags=old_pagehandler->flags|(cpu.code.big ? PFLAG_HASCODE32:PFLAG_HASCODE16);
+-		flags&=~PFLAG_WRITEABLE;
+-		active_blocks=0;
+-		active_count=16;
+-		memset(&hash_map,0,sizeof(hash_map));
+-		memset(&write_map,0,sizeof(write_map));
+-		if (invalidation_map!=NULL) {
+-			free(invalidation_map);
+-			invalidation_map=NULL;
+-		}
+-	}
+-	bool InvalidateRange(Bitu start,Bitu end) {
+-		Bits index=1+(end>>DYN_HASH_SHIFT);
+-		bool is_current_block=false;
+-		Bit32u ip_point=SegPhys(cs)+reg_eip;
+-		ip_point=(PAGING_GetPhysicalPage(ip_point)-(phys_page<<12))+(ip_point&0xfff);
+-		while (index>=0) {
+-			Bitu map=0;
+-			for (Bitu count=start;count<=end;count++) map+=write_map[count];
+-			if (!map) return is_current_block;
+-			CacheBlock * block=hash_map[index];
+-			while (block) {
+-				CacheBlock * nextblock=block->hash.next;
+-				if (start<=block->page.end && end>=block->page.start) {
+-					if (ip_point<=block->page.end && ip_point>=block->page.start) is_current_block=true;
+-					block->Clear();
+-				}
+-				block=nextblock;
+-			}
+-			index--;
+-		}
+-		return is_current_block;
+-	}
+-	void writeb(PhysPt addr,Bitu val){
+-		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return;
+-		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
+-			E_Exit("wb:non-readable code page found that is no ROM page");
+-		}
+-		addr&=4095;
+-		if (host_readb(hostmem+addr)==(Bit8u)val) return;
+-		host_writeb(hostmem+addr,val);
+-		if (!*(Bit8u*)&write_map[addr]) {
+-			if (active_blocks) return;
+-			active_count--;
+-			if (!active_count) Release();
+-			return;
+-		} else if (!invalidation_map) {
+-			invalidation_map=(Bit8u*)malloc(4096);
+-			memset(invalidation_map,0,4096);
+-		}
+-		invalidation_map[addr]++;
+-		InvalidateRange(addr,addr);
+-	}
+-	void writew(PhysPt addr,Bitu val){
+-		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return;
+-		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
+-			E_Exit("ww:non-readable code page found that is no ROM page");
+-		}
+-		addr&=4095;
+-		if (host_readw(hostmem+addr)==(Bit16u)val) return;
+-		host_writew(hostmem+addr,val);
+-		if (!*(Bit16u*)&write_map[addr]) {
+-			if (active_blocks) return;
+-			active_count--;
+-			if (!active_count) Release();
+-			return;
+-		} else if (!invalidation_map) {
+-			invalidation_map=(Bit8u*)malloc(4096);
+-			memset(invalidation_map,0,4096);
+-		}
+-		(*(Bit16u*)&invalidation_map[addr])+=0x101;
+-		InvalidateRange(addr,addr+1);
+-	}
+-	void writed(PhysPt addr,Bitu val){
+-		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return;
+-		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
+-			E_Exit("wd:non-readable code page found that is no ROM page");
+-		}
+-		addr&=4095;
+-		if (host_readd(hostmem+addr)==(Bit32u)val) return;
+-		host_writed(hostmem+addr,val);
+-		if (!*(Bit32u*)&write_map[addr]) {
+-			if (active_blocks) return;
+-			active_count--;
+-			if (!active_count) Release();
+-			return;
+-		} else if (!invalidation_map) {
+-			invalidation_map=(Bit8u*)malloc(4096);
+-			memset(invalidation_map,0,4096);
+-		}
+-		(*(Bit32u*)&invalidation_map[addr])+=0x1010101;
+-		InvalidateRange(addr,addr+3);
+-	}
+-	bool writeb_checked(PhysPt addr,Bitu val) {
+-		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return false;
+-		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
+-			E_Exit("cb:non-readable code page found that is no ROM page");
+-		}
+-		addr&=4095;
+-		if (host_readb(hostmem+addr)==(Bit8u)val) return false;
+-		if (!*(Bit8u*)&write_map[addr]) {
+-			if (!active_blocks) {
+-				active_count--;
+-				if (!active_count) Release();
+-			}
+-		} else {
+-			if (!invalidation_map) {
+-				invalidation_map=(Bit8u*)malloc(4096);
+-				memset(invalidation_map,0,4096);
+-			}
+-			invalidation_map[addr]++;
+-			if (InvalidateRange(addr,addr)) {
+-				cpu.exception.which=SMC_CURRENT_BLOCK;
+-				return true;
+-			}
+-		}
+-		host_writeb(hostmem+addr,val);
+-		return false;
+-	}
+-	bool writew_checked(PhysPt addr,Bitu val) {
+-		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return false;
+-		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
+-			E_Exit("cw:non-readable code page found that is no ROM page");
+-		}
+-		addr&=4095;
+-		if (host_readw(hostmem+addr)==(Bit16u)val) return false;
+-		if (!*(Bit16u*)&write_map[addr]) {
+-			if (!active_blocks) {
+-				active_count--;
+-				if (!active_count) Release();
+-			}
+-		} else {
+-			if (!invalidation_map) {
+-				invalidation_map=(Bit8u*)malloc(4096);
+-				memset(invalidation_map,0,4096);
+-			}
+-			(*(Bit16u*)&invalidation_map[addr])+=0x101;
+-			if (InvalidateRange(addr,addr+1)) {
+-				cpu.exception.which=SMC_CURRENT_BLOCK;
+-				return true;
+-			}
+-		}
+-		host_writew(hostmem+addr,val);
+-		return false;
+-	}
+-	bool writed_checked(PhysPt addr,Bitu val) {
+-		if (GCC_UNLIKELY(old_pagehandler->flags&PFLAG_HASROM)) return false;
+-		if (GCC_UNLIKELY((old_pagehandler->flags&PFLAG_READABLE)!=PFLAG_READABLE)) {
+-			E_Exit("cd:non-readable code page found that is no ROM page");
+-		}
+-		addr&=4095;
+-		if (host_readd(hostmem+addr)==(Bit32u)val) return false;
+-		if (!*(Bit32u*)&write_map[addr]) {
+-			if (!active_blocks) {
+-				active_count--;
+-				if (!active_count) Release();
+-			}
+-		} else {
+-			if (!invalidation_map) {
+-				invalidation_map=(Bit8u*)malloc(4096);
+-				memset(invalidation_map,0,4096);
+-			}
+-			(*(Bit32u*)&invalidation_map[addr])+=0x1010101;
+-			if (InvalidateRange(addr,addr+3)) {
+-				cpu.exception.which=SMC_CURRENT_BLOCK;
+-				return true;
+-			}
+-		}
+-		host_writed(hostmem+addr,val);
+-		return false;
+-	}
+-    void AddCacheBlock(CacheBlock * block) {
+-		Bitu index=1+(block->page.start>>DYN_HASH_SHIFT);
+-		block->hash.next=hash_map[index];
+-		block->hash.index=index;
+-		hash_map[index]=block;
+-		block->page.handler=this;
+-		active_blocks++;
+-	}
+-    void AddCrossBlock(CacheBlock * block) {
+-		block->hash.next=hash_map[0];
+-		block->hash.index=0;
+-		hash_map[0]=block;
+-		block->page.handler=this;
+-		active_blocks++;
+-	}
+-	void DelCacheBlock(CacheBlock * block) {
+-		active_blocks--;
+-		active_count=16;
+-		CacheBlock * * where=&hash_map[block->hash.index];
+-		while (*where!=block) {
+-			where=&((*where)->hash.next);
+-			//Will crash if a block isn't found, which should never happen.
+-		}
+-		*where=block->hash.next;
+-		if (GCC_UNLIKELY(block->cache.wmapmask!=NULL)) {
+-			for (Bitu i=block->page.start;i<block->cache.maskstart;i++) {
+-				if (write_map[i]) write_map[i]--;
+-			}
+-			Bitu maskct=0;
+-			for (Bitu i=block->cache.maskstart;i<=block->page.end;i++,maskct++) {
+-				if (write_map[i]) {
+-					if ((maskct>=block->cache.masklen) || (!block->cache.wmapmask[maskct])) write_map[i]--;
+-				}
+-			}
+-			free(block->cache.wmapmask);
+-			block->cache.wmapmask=NULL;
+-		} else {
+-			for (Bitu i=block->page.start;i<=block->page.end;i++) {
+-				if (write_map[i]) write_map[i]--;
+-			}
+-		}
+-	}
+-	void Release(void) {
+-		MEM_SetPageHandler(phys_page,1,old_pagehandler);
+-		PAGING_ClearTLB();
+-		if (prev) prev->next=next;
+-		else cache.used_pages=next;
+-		if (next) next->prev=prev;
+-		else cache.last_page=prev;
+-		next=cache.free_pages;
+-		cache.free_pages=this;
+-		prev=0;
+-	}
+-	void ClearRelease(void) {
+-		for (Bitu index=0;index<(1+DYN_PAGE_HASH);index++) {
+-			CacheBlock * block=hash_map[index];
+-			while (block) {
+-				CacheBlock * nextblock=block->hash.next;
+-				block->page.handler=0;			//No need, full clear
+-				block->Clear();
+-				block=nextblock;
+-			}
+-		}
+-		Release();
+-	}
+-	CacheBlock * FindCacheBlock(Bitu start) {
+-		CacheBlock * block=hash_map[1+(start>>DYN_HASH_SHIFT)];
+-		while (block) {
+-			if (block->page.start==start) return block;
+-			block=block->hash.next;
+-		}
+-		return 0;
+-	}
+-	HostPt GetHostReadPt(Bitu phys_page) { 
+-		hostmem=old_pagehandler->GetHostReadPt(phys_page);
+-		return hostmem;
+-	}
+-	HostPt GetHostWritePt(Bitu phys_page) { 
+-		return GetHostReadPt( phys_page );
+-	}
+-public:
+-	Bit8u write_map[4096];
+-	Bit8u * invalidation_map;
+-	CodePageHandler * next, * prev;
+-private:
+-	PageHandler * old_pagehandler;
+-	CacheBlock * hash_map[1+DYN_PAGE_HASH];
+-	Bitu active_blocks;
+-	Bitu active_count;
+-	HostPt hostmem;	
+-	Bitu phys_page;
+-};
+-
+-
+-static INLINE void cache_addunsedblock(CacheBlock * block) {
+-	block->cache.next=cache.block.free;
+-	cache.block.free=block;
+-}
+-
+-static CacheBlock * cache_getblock(void) {
+-	CacheBlock * ret=cache.block.free;
+-	if (!ret) E_Exit("Ran out of CacheBlocks" );
+-	cache.block.free=ret->cache.next;
+-	ret->cache.next=0;
+-	return ret;
+-}
+-
+-void CacheBlock::Clear(void) {
+-	Bitu ind;
+-	/* Check if this is not a cross page block */
+-	if (hash.index) for (ind=0;ind<2;ind++) {
+-		CacheBlock * fromlink=link[ind].from;
+-		link[ind].from=0;
+-		while (fromlink) {
+-			CacheBlock * nextlink=fromlink->link[ind].next;
+-			fromlink->link[ind].next=0;
+-			fromlink->link[ind].to=&link_blocks[ind];
+-			fromlink=nextlink;
+-		}
+-		if (link[ind].to!=&link_blocks[ind]) {
+-			CacheBlock * * wherelink=&link[ind].to->link[ind].from;
+-			while (*wherelink != this && *wherelink) {
+-				wherelink = &(*wherelink)->link[ind].next;
+-			}
+-			if(*wherelink) 
+-				*wherelink = (*wherelink)->link[ind].next;
+-			else
+-				LOG(LOG_CPU,LOG_ERROR)("Cache anomaly. please investigate");
+-		}
+-	} else 
+-		cache_addunsedblock(this);
+-	if (crossblock) {
+-		crossblock->crossblock=0;
+-		crossblock->Clear();
+-		crossblock=0;
+-	}
+-	if (page.handler) {
+-		page.handler->DelCacheBlock(this);
+-		page.handler=0;
+-	}
+-	if (cache.wmapmask){
+-		free(cache.wmapmask);
+-		cache.wmapmask=NULL;
+-	}
+-}
+-
+-
+-static CacheBlock * cache_openblock(void) {
+-	CacheBlock * block=cache.block.active;
+-	/* check for enough space in this block */
+-	Bitu size=block->cache.size;
+-	CacheBlock * nextblock=block->cache.next;
+-	if (block->page.handler) 
+-		block->Clear();
+-	while (size<CACHE_MAXSIZE) {
+-		if (!nextblock) 
+-			goto skipresize;
+-		size+=nextblock->cache.size;
+-		CacheBlock * tempblock=nextblock->cache.next;
+-		if (nextblock->page.handler) 
+-			nextblock->Clear();
+-		cache_addunsedblock(nextblock);
+-		nextblock=tempblock;
+-	}
+-skipresize:
+-	block->cache.size=size;
+-	block->cache.next=nextblock;
+-	cache.pos=block->cache.start;
+-	return block;
+-}
+-
+-static void cache_closeblock(void) {
+-	CacheBlock * block=cache.block.active;
+-	block->link[0].to=&link_blocks[0];
+-	block->link[1].to=&link_blocks[1];
+-	block->link[0].from=0;
+-	block->link[1].from=0;
+-	block->link[0].next=0;
+-	block->link[1].next=0;
+-	/* Close the block with correct alignments */
+-	Bitu written=cache.pos-block->cache.start;
+-	if (written>block->cache.size) {
+-		if (!block->cache.next) {
+-			if (written > block->cache.size + CACHE_MAXSIZE) E_Exit("CacheBlock overrun 1 %" sBitfs(d),written-block->cache.size);	
+-		} else E_Exit("CacheBlock overrun 2 written %" sBitfs(d) " size %" sBitfs(d),written,block->cache.size);	
+-	} else {
+-		Bitu new_size;
+-		Bitu left=block->cache.size-written;
+-		/* Smaller than cache align then don't bother to resize */
+-		if (left>CACHE_ALIGN) {
+-			new_size=((written-1)|(CACHE_ALIGN-1))+1;
+-			CacheBlock * newblock=cache_getblock();
+-			newblock->cache.start=block->cache.start+new_size;
+-			newblock->cache.size=block->cache.size-new_size;
+-			newblock->cache.next=block->cache.next;
+-			block->cache.next=newblock;
+-			block->cache.size=new_size;
+-		}
+-	}
+-	/* Advance the active block pointer */
+-	if (!block->cache.next) {
+-//		LOG_MSG("Cache full restarting");
+-		cache.block.active=cache.block.first;
+-	} else {
+-		cache.block.active=block->cache.next;
+-	}
+-}
+-
+-static INLINE void cache_addb(Bit8u val) {
+-	*cache.pos++=val;
+-}
+-
+-static INLINE void cache_addw(Bit16u val) {
+-	*(Bit16u*)cache.pos=val;
+-	cache.pos+=2;
+-}
+-
+-static INLINE void cache_addd(Bit32u val) {
+-	*(Bit32u*)cache.pos=val;
+-	cache.pos+=4;
+-}
+-
+-static INLINE void cache_addq(Bit64u val) {
+-	*(Bit64u*)cache.pos=val;
+-	cache.pos+=8;
+-}
+-
+-static void gen_return(BlockReturn retcode);
+-
+-static Bit8u * cache_code_start_ptr=NULL;
+-static Bit8u * cache_code=NULL;
+-static Bit8u * cache_code_link_blocks=NULL;
+-static CacheBlock * cache_blocks=NULL;
+-
+-/* Define temporary pagesize so the MPROTECT case and the regular case share as much code as possible */
+-#if (C_HAVE_MPROTECT)
+-#define PAGESIZE_TEMP PAGESIZE
+-#else 
+-#define PAGESIZE_TEMP 4096
+-#endif
+-
+-static bool cache_initialized = false;
+-
+-static void cache_init(bool enable) {
+-	Bits i;
+-	if (enable) {
+-		if (cache_initialized) return;
+-		cache_initialized = true;
+-		if (cache_blocks == NULL) {
+-			cache_blocks=(CacheBlock*)malloc(CACHE_BLOCKS*sizeof(CacheBlock));
+-			if(!cache_blocks) E_Exit("Allocating cache_blocks has failed");
+-			memset(cache_blocks,0,sizeof(CacheBlock)*CACHE_BLOCKS);
+-			cache.block.free=&cache_blocks[0];
+-			for (i=0;i<CACHE_BLOCKS-1;i++) {
+-				cache_blocks[i].link[0].to=(CacheBlock *)1;
+-				cache_blocks[i].link[1].to=(CacheBlock *)1;
+-				cache_blocks[i].cache.next=&cache_blocks[i+1];
+-			}
+-		}
+-		if (cache_code_start_ptr==NULL) {
+-#if defined (WIN32)
+-			cache_code_start_ptr=(Bit8u*)VirtualAlloc(0,CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP,
+-				MEM_COMMIT,PAGE_EXECUTE_READWRITE);
+-			if (!cache_code_start_ptr)
+-				cache_code_start_ptr=(Bit8u*)malloc(CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP);
+-#else
+-			cache_code_start_ptr=(Bit8u*)malloc(CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP);
+-#endif
+-			if(!cache_code_start_ptr) E_Exit("Allocating dynamic core cache memory failed");
+-
+-			cache_code=(Bit8u*)(((Bitu)cache_code_start_ptr + PAGESIZE_TEMP-1) & ~(PAGESIZE_TEMP-1)); //Bitu is same size as a pointer.
+-
+-			cache_code_link_blocks=cache_code;
+-			cache_code+=PAGESIZE_TEMP;
+-
+-#if (C_HAVE_MPROTECT)
+-			if(mprotect(cache_code_link_blocks,CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP,PROT_WRITE|PROT_READ|PROT_EXEC))
+-				LOG_MSG("Setting execute permission on the code cache has failed!");
+-#endif
+-			CacheBlock * block=cache_getblock();
+-			cache.block.first=block;
+-			cache.block.active=block;
+-			block->cache.start=&cache_code[0];
+-			block->cache.size=CACHE_TOTAL;
+-			block->cache.next=0;								//Last block in the list
+-		}
+-		/* Setup the default blocks for block linkage returns */
+-		cache.pos=&cache_code_link_blocks[0];
+-		link_blocks[0].cache.start=cache.pos;
+-		gen_return(BR_Link1);
+-		cache.pos=&cache_code_link_blocks[32];
+-		link_blocks[1].cache.start=cache.pos;
+-		gen_return(BR_Link2);
+-		cache.free_pages=0;
+-		cache.last_page=0;
+-		cache.used_pages=0;
+-		/* Setup the code pages */
+-		for (i=0;i<CACHE_PAGES;i++) {
+-			CodePageHandler * newpage=new CodePageHandler();
+-			newpage->next=cache.free_pages;
+-			cache.free_pages=newpage;
+-		}
+-	}
+-}
+-
+-static void cache_close(void) {
+-/*	for (;;) {
+-		if (cache.used_pages) {
+-			CodePageHandler * cpage=cache.used_pages;
+-			CodePageHandler * npage=cache.used_pages->next;
+-			cpage->ClearRelease();
+-			delete cpage;
+-			cache.used_pages=npage;
+-		} else break;
+-	}
+-	if (cache_blocks != NULL) {
+-		free(cache_blocks);
+-		cache_blocks = NULL;
+-	}
+-	if (cache_code_start_ptr != NULL) {
+-		### care: under windows VirtualFree() has to be used if
+-		###       VirtualAlloc was used for memory allocation
+-		free(cache_code_start_ptr);
+-		cache_code_start_ptr = NULL;
+-	}
+-	cache_code = NULL;
+-	cache_code_link_blocks = NULL;
+-	cache_initialized = false; */
+-}
+
+Property changes on: src/cpu/core_dyn_x86/cache.h
+___________________________________________________________________
+Deleted: svn:eol-style
+## -1 +0,0 ##
+-native
+\ No newline at end of property
+Deleted: svn:mime-type
+## -1 +0,0 ##
+-text/plain
+\ No newline at end of property
+Index: src/cpu/core_dyn_x86/decoder.h
+===================================================================
+--- src/cpu/core_dyn_x86/decoder.h	(revision 4392)
++++ src/cpu/core_dyn_x86/decoder.h	(working copy)
+@@ -32,10 +32,10 @@
+ 	bool big_addr;
+ 	REP_Type rep;
+ 	Bitu cycles;
+-	CacheBlock * block;
+-	CacheBlock * active_block;
++	CacheBlockDynRec * block;
++	CacheBlockDynRec * active_block;
+ 	struct {
+-		CodePageHandler * code;	
++		CodePageHandlerDynRec * code;	
+ 		Bitu index;
+ 		Bit8u * wmap;
+ 		Bit8u * invmap;
+@@ -50,7 +50,7 @@
+ 	DynReg * segprefix;
+ } decode;
+ 
+-static bool MakeCodePage(Bitu lin_addr,CodePageHandler * &cph) {
++static bool MakeCodePage(Bitu lin_addr,CodePageHandlerDynRec * &cph) {
+ 	Bit8u rdval;
+ 	const Bitu cflag = cpu.code.big ? PFLAG_HASCODE32:PFLAG_HASCODE16;
+ 	//Ensure page contains memory:
+@@ -57,7 +57,7 @@
+ 	if (GCC_UNLIKELY(mem_readb_checked(lin_addr,&rdval))) return true;
+ 	PageHandler * handler=get_tlb_readhandler(lin_addr);
+ 	if (handler->flags & PFLAG_HASCODE) {
+-		cph=( CodePageHandler *)handler;
++		cph=( CodePageHandlerDynRec *)handler;
+ 		if (handler->flags & cflag) return false;
+ 		cph->ClearRelease();
+ 		cph=0;
+@@ -67,7 +67,7 @@
+ 		if (PAGING_ForcePageInit(lin_addr)) {
+ 			handler=get_tlb_readhandler(lin_addr);
+ 			if (handler->flags & PFLAG_HASCODE) {
+-				cph=( CodePageHandler *)handler;
++				cph=( CodePageHandlerDynRec *)handler;
+ 				if (handler->flags & cflag) return false;
+ 				cph->ClearRelease();
+ 				cph=0;
+@@ -97,7 +97,7 @@
+ 			}
+ 		}
+ 	}
+-	CodePageHandler * cpagehandler=cache.free_pages;
++	CodePageHandlerDynRec * cpagehandler=cache.free_pages;
+ 	cache.free_pages=cache.free_pages->next;
+ 	cpagehandler->prev=cache.last_page;
+ 	cpagehandler->next=0;
+@@ -120,7 +120,7 @@
+ 		Bitu fetchaddr=decode.page.first << 12;
+ 		mem_readb(fetchaddr);
+ 		MakeCodePage(fetchaddr,decode.page.code);
+-		CacheBlock * newblock=cache_getblock();
++		CacheBlockDynRec * newblock=cache_getblock();
+ 		decode.active_block->crossblock=newblock;
+ 		newblock->crossblock=decode.active_block;
+ 		decode.active_block=newblock;
+@@ -163,7 +163,7 @@
+ 
+ static INLINE void decode_increase_wmapmask(Bitu size) {
+ 	Bitu mapidx;
+-	CacheBlock* activecb=decode.active_block; 
++	CacheBlockDynRec* activecb=decode.active_block; 
+ 	if (GCC_UNLIKELY(!activecb->cache.wmapmask)) {
+ 		activecb->cache.wmapmask=(Bit8u*)malloc(START_WMMEM);
+ 		memset(activecb->cache.wmapmask,0,START_WMMEM);
+@@ -533,7 +533,7 @@
+ 	gen_fill_branch(je_loc);
+ 	cache_addb(0x51);		// push ecx
+ 	cache_addb(0xe8);
+-	cache_addd(((Bit32u)&mem_readb_checked_dcx86) - (Bit32u)cache.pos-4);
++	cache_addd(((Bits)&mem_readb_checked_dcx86) - (Bits)cache.pos-4);
+ 	cache_addw(0xc483);		// add esp,4
+ 	cache_addb(0x04);
+ 	cache_addw(0x012c);		// sub al,1
+@@ -616,8 +616,8 @@
+ 	}
+ 	cache_addb(0x51);		// push ecx
+ 	cache_addb(0xe8);
+-	if (dword) cache_addd(((Bit32u)&mem_readd_checked_dcx86) - (Bit32u)cache.pos-4);
+-	else cache_addd(((Bit32u)&mem_readw_checked_dcx86) - (Bit32u)cache.pos-4);
++	if (dword) cache_addd(((Bits)&mem_readd_checked_dcx86) - (Bits)cache.pos-4);
++	else cache_addd(((Bits)&mem_readw_checked_dcx86) - (Bits)cache.pos-4);
+ 	cache_addw(0xc483);		// add esp,4
+ 	cache_addb(0x04);
+ 	cache_addw(0x012c);		// sub al,1
+@@ -685,7 +685,7 @@
+ 	cache_addb(0x50);	// push eax
+ 	if (GCC_UNLIKELY(high)) cache_addw(0xe086+((genreg->index+(genreg->index<<3))<<8));
+ 	cache_addb(0xe8);
+-	cache_addd(((Bit32u)&mem_writeb_checked) - (Bit32u)cache.pos-4);
++	cache_addd(((Bits)&mem_writeb_checked) - (Bits)cache.pos-4);
+ 	cache_addw(0xc483);		// add esp,8
+ 	cache_addb(0x08);
+ 	cache_addw(0x012c);		// sub al,1
+@@ -729,8 +729,8 @@
+ 	cache_addb(0x50+genreg->index);
+ 	cache_addb(0x50);	// push eax
+ 	cache_addb(0xe8);
+-	if (dword) cache_addd(((Bit32u)&mem_writed_checked) - (Bit32u)cache.pos-4);
+-	else cache_addd(((Bit32u)&mem_writew_checked) - (Bit32u)cache.pos-4);
++	if (dword) cache_addd(((Bits)&mem_writed_checked) - (Bits)cache.pos-4);
++	else cache_addd(((Bits)&mem_writew_checked) - (Bits)cache.pos-4);
+ 	cache_addw(0xc483);		// add esp,8
+ 	cache_addb(0x08);
+ 	cache_addw(0x012c);		// sub al,1
+@@ -1861,7 +1861,7 @@
+ 	gen_dop_word_imm(DOP_ADD,decode.big_op,DREG(EIP),(decode.code-decode.code_start)+eip_change);
+ 	dyn_reduce_cycles();
+ 	dyn_save_critical_regs();
+-	gen_jmp_ptr(&decode.block->link[0].to,offsetof(CacheBlock,cache.start));
++	gen_jmp_ptr(&decode.block->link[0].to,offsetof(CacheBlockDynRec,cache.start));
+ 	dyn_closeblock();
+ }
+ 
+@@ -1885,7 +1885,7 @@
+  	gen_dop_word_imm(DOP_ADD,decode.big_op,DREG(EIP),eip_base);
+ 	gen_releasereg(DREG(CYCLES));
+  	gen_releasereg(DREG(EIP));
+- 	gen_jmp_ptr(&decode.block->link[0].to,offsetof(CacheBlock,cache.start));
++ 	gen_jmp_ptr(&decode.block->link[0].to,offsetof(CacheBlockDynRec,cache.start));
+  	gen_fill_branch(data);
+ 
+  	/* Branch taken */
+@@ -1895,7 +1895,7 @@
+  	gen_dop_word_imm(DOP_ADD,decode.big_op,DREG(EIP),eip_base+eip_add);
+ 	gen_releasereg(DREG(CYCLES));
+  	gen_releasereg(DREG(EIP));
+- 	gen_jmp_ptr(&decode.block->link[1].to,offsetof(CacheBlock,cache.start));
++ 	gen_jmp_ptr(&decode.block->link[1].to,offsetof(CacheBlockDynRec,cache.start));
+  	dyn_closeblock();
+ }
+ 
+@@ -1936,7 +1936,7 @@
+ 	}
+ 	gen_lea(DREG(EIP),DREG(EIP),0,0,eip_base+eip_add);
+ 	gen_releasereg(DREG(EIP));
+-	gen_jmp_ptr(&decode.block->link[0].to,offsetof(CacheBlock,cache.start));
++	gen_jmp_ptr(&decode.block->link[0].to,offsetof(CacheBlockDynRec,cache.start));
+ 	if (branch1) {
+ 		gen_fill_branch(branch1);
+ 		gen_sop_word(SOP_DEC,decode.big_addr,DREG(ECX));
+@@ -1946,7 +1946,7 @@
+ 	gen_fill_branch(branch2);
+ 	gen_lea(DREG(EIP),DREG(EIP),0,0,eip_base);
+ 	gen_releasereg(DREG(EIP));
+-	gen_jmp_ptr(&decode.block->link[1].to,offsetof(CacheBlock,cache.start));
++	gen_jmp_ptr(&decode.block->link[1].to,offsetof(CacheBlockDynRec,cache.start));
+ 	dyn_closeblock();
+ }
+ 
+@@ -1971,7 +1971,7 @@
+ 	else gen_extend_word(false,DREG(EIP),DREG(TMPW));
+ 	dyn_reduce_cycles();
+ 	dyn_save_critical_regs();
+-	gen_jmp_ptr(&decode.block->link[0].to,offsetof(CacheBlock,cache.start));
++	gen_jmp_ptr(&decode.block->link[0].to,offsetof(CacheBlockDynRec,cache.start));
+ 	dyn_closeblock();
+ }
+ 
+@@ -2107,7 +2107,7 @@
+ #endif
+ #include "dyn_fpu.h"
+ 
+-static CacheBlock * CreateCacheBlock(CodePageHandler * codepage,PhysPt start,Bitu max_opcodes) {
++static CacheBlockDynRec * CreateCacheBlock(CodePageHandlerDynRec * codepage,PhysPt start,Bitu max_opcodes) {
+ 	Bits i;
+ /* Init a load of variables */
+ 	decode.code_start=start;
+@@ -2814,7 +2814,7 @@
+ 	dyn_set_eip_end();
+ 	dyn_reduce_cycles();
+ 	dyn_save_critical_regs();
+-	gen_jmp_ptr(&decode.block->link[0].to,offsetof(CacheBlock,cache.start));
++	gen_jmp_ptr(&decode.block->link[0].to,offsetof(CacheBlockDynRec,cache.start));
+ 	dyn_closeblock();
+ 	goto finish_block;
+ core_close_block:
+Index: src/cpu/core_dyn_x86/risc_x64.h
+===================================================================
+--- src/cpu/core_dyn_x86/risc_x64.h	(revision 4392)
++++ src/cpu/core_dyn_x86/risc_x64.h	(working copy)
+@@ -124,7 +124,7 @@
+ 					else { // try 32-bit absolute address
+ 						if ((Bit32s)offset != offset) IllegalOption("opcode::Emit: bad RIP address");
+ 						// change emitted modrm base from 5 to 4 (use sib)
+-						cache.pos[-1] -= 1; 
++						((Bit8u*)cache.pos)[-1] -= 1;
+ 						cache_addb(0x25); // sib: [none+1*none+simm32]
+ 					}
+ 				} else if ((modrm&7)!=4 || (sib&7)!=5)
+@@ -269,13 +269,13 @@
+ 	}
+ };
+ 
+-static BlockReturn gen_runcodeInit(Bit8u *code);
+-static BlockReturn (*gen_runcode)(Bit8u *code) = gen_runcodeInit;
++static BlockReturn gen_runcodeInit(const Bit8u *code);
++static BlockReturn (*gen_runcode)(const Bit8u *code) = gen_runcodeInit;
+ 
+-static BlockReturn gen_runcodeInit(Bit8u *code) {
++static BlockReturn gen_runcodeInit(const Bit8u *code) {
+ 	Bit8u* oldpos = cache.pos;
+ 	cache.pos = &cache_code_link_blocks[128];
+-	gen_runcode = (BlockReturn(*)(Bit8u*))cache.pos;
++	gen_runcode = (BlockReturn(*)(const Bit8u*))(const Bit8u*)cache.pos;
+ 
+ 	opcode(5).Emit8Reg(0x50);  // push rbp
+ 	opcode(15).Emit8Reg(0x50); // push r15
+@@ -1258,7 +1258,7 @@
+ static void gen_dh_fpu_saveInit(void) {
+ 	Bit8u* oldpos = cache.pos;
+ 	cache.pos = &cache_code_link_blocks[64];
+-	gen_dh_fpu_save = (void(*)(void))cache.pos;
++	gen_dh_fpu_save = (void(*)(void))(const Bit8u*)cache.pos;
+ 
+ 	Bitu addr = (Bitu)&dyn_dh_fpu;
+ 	// mov RAX, &dyn_dh_fpu
+Index: src/cpu/core_dyn_x86/risc_x86.h
+===================================================================
+--- src/cpu/core_dyn_x86/risc_x86.h	(revision 4392)
++++ src/cpu/core_dyn_x86/risc_x86.h	(working copy)
+@@ -84,7 +84,7 @@
+ 	}
+ };
+ 
+-static BlockReturn gen_runcode(Bit8u * code) {
++static BlockReturn gen_runcode(const Bit8u * code) {
+ 	BlockReturn retval;
+ #if defined (_MSC_VER)
+ 	__asm {
+@@ -873,7 +873,7 @@
+ 		DynRegs[G_ESP].genreg->Save();
+ 	/* Do the actual call to the procedure */
+ 	cache_addb(0xe8);
+-	cache_addd((Bit32u)func - (Bit32u)cache.pos-4);
++	cache_addd((Bits)func - (Bits)cache.pos-4);
+ 	/* Restore the params of the stack */
+ 	if (paramcount) {
+ 		cache_addw(0xc483);				//add ESP,imm byte
+@@ -948,9 +948,9 @@
+ 	/* Do the actual call to the procedure */
+ 	cache_addb(0xe8);
+ 	switch (write_size) {
+-		case 1: cache_addd((Bit32u)mem_writeb_checked - (Bit32u)cache.pos-4); break;
+-		case 2: cache_addd((Bit32u)mem_writew_checked - (Bit32u)cache.pos-4); break;
+-		case 4: cache_addd((Bit32u)mem_writed_checked - (Bit32u)cache.pos-4); break;
++		case 1: cache_addd((Bits)mem_writeb_checked - (Bits)cache.pos-4); break;
++		case 2: cache_addd((Bits)mem_writew_checked - (Bits)cache.pos-4); break;
++		case 4: cache_addd((Bits)mem_writed_checked - (Bits)cache.pos-4); break;
+ 		default: IllegalOption("gen_call_write");
+ 	}
+ 
+Index: src/cpu/core_dyn_x86.cpp
+===================================================================
+--- src/cpu/core_dyn_x86.cpp	(revision 4392)
++++ src/cpu/core_dyn_x86.cpp	(working copy)
+@@ -28,20 +28,6 @@
+ #include <stddef.h>
+ #include <stdlib.h>
+ 
+-#if defined (WIN32)
+-#include <windows.h>
+-#include <winbase.h>
+-#endif
+-
+-#if (C_HAVE_MPROTECT)
+-#include <sys/mman.h>
+-
+-#include <limits.h>
+-#ifndef PAGESIZE
+-#define PAGESIZE 4096
+-#endif
+-#endif /* C_HAVE_MPROTECT */
+-
+ #include "callback.h"
+ #include "regs.h"
+ #include "mem.h"
+@@ -133,13 +119,13 @@
+ #define DYNFLG_ACTIVE		0x20	//Register has an active value
+ 
+ class GenReg;
+-class CodePageHandler;
++class CodePageHandlerDynRec;
+ 
+ struct DynReg {
+ 	Bitu flags;
+ 	GenReg * genreg;
+ 	void * data;
+-}; 
++};
+ 
+ enum DynAccess {
+ 	DA_d,DA_w,
+@@ -160,7 +146,7 @@
+ 
+ #define IllegalOption(msg) E_Exit("DYNX86: illegal option in " msg)
+ 
+-#include "core_dyn_x86/cache.h" 
++#include "cache.h"
+ 
+ static struct {
+ 	Bitu callback;
+@@ -273,7 +259,7 @@
+ 		if (DEBUG_HeavyIsBreakpoint()) return debugCallback;
+ #endif
+ #endif
+-	CodePageHandler * chandler=0;
++	CodePageHandlerDynRec * chandler=0;
+ 	if (GCC_UNLIKELY(MakeCodePage(ip_point,chandler))) {
+ 		CPU_Exception(cpu.exception.which,cpu.exception.error);
+ 		goto restart_core;
+@@ -282,7 +268,7 @@
+ 		return CPU_Core_Normal_Run();
+ 	}
+ 	/* Find correct Dynamic Block to run */
+-	CacheBlock * block=chandler->FindCacheBlock(ip_point&4095);
++	CacheBlockDynRec * block=chandler->FindCacheBlock(ip_point&4095);
+ 	if (!block) {
+ 		if (!chandler->invalidation_map || (chandler->invalidation_map[ip_point&4095]<4)) {
+ 			block=CreateCacheBlock(chandler,ip_point,32);
+@@ -297,7 +283,7 @@
+ 				goto restart_core;
+ 			}
+ 			CPU_CycleLeft+=old_cycles;
+-			return nc_retcode; 
++			return nc_retcode;
+ 		}
+ 	}
+ run_block:
+@@ -333,7 +319,7 @@
+ 		goto restart_core;
+ 	case BR_Cycles:
+ #if C_DEBUG
+-#if C_HEAVY_DEBUG			
++#if C_HEAVY_DEBUG
+ 		if (DEBUG_HeavyIsBreakpoint()) return debugCallback;
+ #endif
+ #endif
+@@ -358,7 +344,7 @@
+ 	case BR_Link2:
+ 		{
+ 			Bit32u temp_ip=SegPhys(cs)+reg_eip;
+-			CodePageHandler * temp_handler=(CodePageHandler *)get_tlb_readhandler(temp_ip);
++			CodePageHandlerDynRec * temp_handler=(CodePageHandlerDynRec *)get_tlb_readhandler(temp_ip);
+ 			if (temp_handler->flags & (cpu.code.big ? PFLAG_HASCODE32:PFLAG_HASCODE16)) {
+ 				block=temp_handler->FindCacheBlock(temp_ip & 4095);
+ 				if (!block) goto restart_core;
+@@ -460,8 +446,16 @@
+ }
+ 
+ void CPU_Core_Dyn_X86_Cache_Init(bool enable_cache) {
+-	/* Initialize code cache and dynamic blocks */
+-	cache_init(enable_cache);
++	/* Initialize code cache */
++	const Bit8u *pos = cache_init(enable_cache);
++	if (pos) {
++		cache.pos = pos;
++		/* Setup the default blocks for block linkage returns */
++		link_blocks[0].cache.start=cache.pos;
++		gen_return(BR_Link1);
++		link_blocks[1].cache.start=cache.pos;
++		gen_return(BR_Link2);
++	}
+ }
+ 
+ void CPU_Core_Dyn_X86_Cache_Close(void) {
+Index: src/cpu/core_dynrec/Makefile.am
+===================================================================
+--- src/cpu/core_dynrec/Makefile.am	(revision 4392)
++++ src/cpu/core_dynrec/Makefile.am	(working copy)
+@@ -1,4 +1,4 @@
+-noinst_HEADERS = cache.h decoder.h decoder_basic.h decoder_opcodes.h \
++noinst_HEADERS = decoder.h decoder_basic.h decoder_opcodes.h \
+                  dyn_fpu.h operators.h risc_x64.h risc_x86.h risc_mipsel32.h \
+                  risc_armv4le.h risc_armv4le-common.h \
+                  risc_armv4le-o3.h risc_armv4le-thumb.h \
+Index: src/cpu/core_dynrec/cache.h
+===================================================================
+--- src/cpu/core_dynrec/cache.h	(revision 4392)
++++ src/cpu/core_dynrec/cache.h	(nonexistent)
+@@ -1,665 +0,0 @@
+-/*
+- *  Copyright (C) 2002-2020  The DOSBox Team
+- *
+- *  This program is free software; you can redistribute it and/or modify
+- *  it under the terms of the GNU General Public License as published by
+- *  the Free Software Foundation; either version 2 of the License, or
+- *  (at your option) any later version.
+- *
+- *  This program is distributed in the hope that it will be useful,
+- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- *  GNU General Public License for more details.
+- *
+- *  You should have received a copy of the GNU General Public License along
+- *  with this program; if not, write to the Free Software Foundation, Inc.,
+- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+- */
+-
+-
+-class CodePageHandlerDynRec;	// forward
+-
+-// basic cache block representation
+-class CacheBlockDynRec {
+-public:
+-	void Clear(void);
+-	// link this cache block to another block, index specifies the code
+-	// path (always zero for unconditional links, 0/1 for conditional ones
+-	void LinkTo(Bitu index,CacheBlockDynRec * toblock) {
+-		assert(toblock);
+-		link[index].to=toblock;
+-		link[index].next=toblock->link[index].from;	// set target block
+-		toblock->link[index].from=this;				// remember who links me
+-	}
+-	struct {
+-		Bit16u start,end;		// where in the page is the original code
+-		CodePageHandlerDynRec * handler;			// page containing this code
+-	} page;
+-	struct {
+-		Bit8u * start;			// where in the cache are we
+-		Bitu size;
+-		CacheBlockDynRec * next;
+-		// writemap masking maskpointer/start/length
+-		// to allow holes in the writemap
+-		Bit8u * wmapmask;
+-		Bit16u maskstart;
+-		Bit16u masklen;
+-	} cache;
+-	struct {
+-		Bitu index;
+-		CacheBlockDynRec * next;
+-	} hash;
+-	struct {
+-		CacheBlockDynRec * to;		// this block can transfer control to the to-block
+-		CacheBlockDynRec * next;
+-		CacheBlockDynRec * from;	// the from-block can transfer control to this block
+-	} link[2];	// maximum two links (conditional jumps)
+-	CacheBlockDynRec * crossblock;
+-};
+-
+-static struct {
+-	struct {
+-		CacheBlockDynRec * first;		// the first cache block in the list
+-		CacheBlockDynRec * active;		// the current cache block
+-		CacheBlockDynRec * free;		// pointer to the free list
+-		CacheBlockDynRec * running;		// the last block that was entered for execution
+-	} block;
+-	Bit8u * pos;		// position in the cache block
+-	CodePageHandlerDynRec * free_pages;		// pointer to the free list
+-	CodePageHandlerDynRec * used_pages;		// pointer to the list of used pages
+-	CodePageHandlerDynRec * last_page;		// the last used page
+-} cache;
+-
+-
+-// cache memory pointers, to be malloc'd later
+-static Bit8u * cache_code_start_ptr=NULL;
+-static Bit8u * cache_code=NULL;
+-static Bit8u * cache_code_link_blocks=NULL;
+-
+-static CacheBlockDynRec * cache_blocks=NULL;
+-static CacheBlockDynRec link_blocks[2];		// default linking (specially marked)
+-
+-
+-// the CodePageHandlerDynRec class provides access to the contained
+-// cache blocks and intercepts writes to the code for special treatment
+-class CodePageHandlerDynRec : public PageHandler {
+-public:
+-	CodePageHandlerDynRec() {
+-		invalidation_map=NULL;
+-	}
+-
+-	void SetupAt(Bitu _phys_page,PageHandler * _old_pagehandler) {
+-		// initialize this codepage handler
+-		phys_page=_phys_page;
+-		// save the old pagehandler to provide direct read access to the memory,
+-		// and to be able to restore it later on
+-		old_pagehandler=_old_pagehandler;
+-
+-		// adjust flags
+-		flags=old_pagehandler->flags|(cpu.code.big ? PFLAG_HASCODE32:PFLAG_HASCODE16);
+-		flags&=~PFLAG_WRITEABLE;
+-
+-		active_blocks=0;
+-		active_count=16;
+-
+-		// initialize the maps with zero (no cache blocks as well as code present)
+-		memset(&hash_map,0,sizeof(hash_map));
+-		memset(&write_map,0,sizeof(write_map));
+-		if (invalidation_map!=NULL) {
+-			free(invalidation_map);
+-			invalidation_map=NULL;
+-		}
+-	}
+-
+-	// clear out blocks that contain code which has been modified
+-	bool InvalidateRange(Bitu start,Bitu end) {
+-		Bits index=1+(end>>DYN_HASH_SHIFT);
+-		bool is_current_block=false;	// if the current block is modified, it has to be exited as soon as possible
+-
+-		Bit32u ip_point=SegPhys(cs)+reg_eip;
+-		ip_point=(PAGING_GetPhysicalPage(ip_point)-(phys_page<<12))+(ip_point&0xfff);
+-		while (index>=0) {
+-			Bitu map=0;
+-			// see if there is still some code in the range
+-			for (Bitu count=start;count<=end;count++) map+=write_map[count];
+-			if (!map) return is_current_block;	// no more code, finished
+-
+-			CacheBlockDynRec * block=hash_map[index];
+-			while (block) {
+-				CacheBlockDynRec * nextblock=block->hash.next;
+-				// test if this block is in the range
+-				if (start<=block->page.end && end>=block->page.start) {
+-					if (ip_point<=block->page.end && ip_point>=block->page.start) is_current_block=true;
+-					block->Clear();		// clear the block, decrements the write_map accordingly
+-				}
+-				block=nextblock;
+-			}
+-			index--;
+-		}
+-		return is_current_block;
+-	}
+-
+-	// the following functions will clean all cache blocks that are invalid now due to the write
+-	void writeb(PhysPt addr,Bitu val){
+-		addr&=4095;
+-		if (host_readb(hostmem+addr)==(Bit8u)val) return;
+-		host_writeb(hostmem+addr,val);
+-		// see if there's code where we are writing to
+-		if (!host_readb(&write_map[addr])) {
+-			if (active_blocks) return;		// still some blocks in this page
+-			active_count--;
+-			if (!active_count) Release();	// delay page releasing until active_count is zero
+-			return;
+-		} else if (!invalidation_map) {
+-			invalidation_map=(Bit8u*)malloc(4096);
+-			memset(invalidation_map,0,4096);
+-		}
+-		invalidation_map[addr]++;
+-		InvalidateRange(addr,addr);
+-	}
+-	void writew(PhysPt addr,Bitu val){
+-		addr&=4095;
+-		if (host_readw(hostmem+addr)==(Bit16u)val) return;
+-		host_writew(hostmem+addr,val);
+-		// see if there's code where we are writing to
+-		if (!host_readw(&write_map[addr])) {
+-			if (active_blocks) return;		// still some blocks in this page
+-			active_count--;
+-			if (!active_count) Release();	// delay page releasing until active_count is zero
+-			return;
+-		} else if (!invalidation_map) {
+-			invalidation_map=(Bit8u*)malloc(4096);
+-			memset(invalidation_map,0,4096);
+-		}
+-#if defined(WORDS_BIGENDIAN) || !defined(C_UNALIGNED_MEMORY)
+-		host_writew(&invalidation_map[addr],
+-			host_readw(&invalidation_map[addr])+0x101);
+-#else
+-		(*(Bit16u*)&invalidation_map[addr])+=0x101;
+-#endif
+-		InvalidateRange(addr,addr+1);
+-	}
+-	void writed(PhysPt addr,Bitu val){
+-		addr&=4095;
+-		if (host_readd(hostmem+addr)==(Bit32u)val) return;
+-		host_writed(hostmem+addr,val);
+-		// see if there's code where we are writing to
+-		if (!host_readd(&write_map[addr])) {
+-			if (active_blocks) return;		// still some blocks in this page
+-			active_count--;
+-			if (!active_count) Release();	// delay page releasing until active_count is zero
+-			return;
+-		} else if (!invalidation_map) {
+-			invalidation_map=(Bit8u*)malloc(4096);
+-			memset(invalidation_map,0,4096);
+-		}
+-#if defined(WORDS_BIGENDIAN) || !defined(C_UNALIGNED_MEMORY)
+-		host_writed(&invalidation_map[addr],
+-			host_readd(&invalidation_map[addr])+0x1010101);
+-#else
+-		(*(Bit32u*)&invalidation_map[addr])+=0x1010101;
+-#endif
+-		InvalidateRange(addr,addr+3);
+-	}
+-	bool writeb_checked(PhysPt addr,Bitu val) {
+-		addr&=4095;
+-		if (host_readb(hostmem+addr)==(Bit8u)val) return false;
+-		// see if there's code where we are writing to
+-		if (!host_readb(&write_map[addr])) {
+-			if (!active_blocks) {
+-				// no blocks left in this page, still delay the page releasing a bit
+-				active_count--;
+-				if (!active_count) Release();
+-			}
+-		} else {
+-			if (!invalidation_map) {
+-				invalidation_map=(Bit8u*)malloc(4096);
+-				memset(invalidation_map,0,4096);
+-			}
+-			invalidation_map[addr]++;
+-			if (InvalidateRange(addr,addr)) {
+-				cpu.exception.which=SMC_CURRENT_BLOCK;
+-				return true;
+-			}
+-		}
+-		host_writeb(hostmem+addr,val);
+-		return false;
+-	}
+-	bool writew_checked(PhysPt addr,Bitu val) {
+-		addr&=4095;
+-		if (host_readw(hostmem+addr)==(Bit16u)val) return false;
+-		// see if there's code where we are writing to
+-		if (!host_readw(&write_map[addr])) {
+-			if (!active_blocks) {
+-				// no blocks left in this page, still delay the page releasing a bit
+-				active_count--;
+-				if (!active_count) Release();
+-			}
+-		} else {
+-			if (!invalidation_map) {
+-				invalidation_map=(Bit8u*)malloc(4096);
+-				memset(invalidation_map,0,4096);
+-			}
+-#if defined(WORDS_BIGENDIAN) || !defined(C_UNALIGNED_MEMORY)
+-			host_writew(&invalidation_map[addr],
+-				host_readw(&invalidation_map[addr])+0x101);
+-#else
+-			(*(Bit16u*)&invalidation_map[addr])+=0x101;
+-#endif
+-			if (InvalidateRange(addr,addr+1)) {
+-				cpu.exception.which=SMC_CURRENT_BLOCK;
+-				return true;
+-			}
+-		}
+-		host_writew(hostmem+addr,val);
+-		return false;
+-	}
+-	bool writed_checked(PhysPt addr,Bitu val) {
+-		addr&=4095;
+-		if (host_readd(hostmem+addr)==(Bit32u)val) return false;
+-		// see if there's code where we are writing to
+-		if (!host_readd(&write_map[addr])) {
+-			if (!active_blocks) {
+-				// no blocks left in this page, still delay the page releasing a bit
+-				active_count--;
+-				if (!active_count) Release();
+-			}
+-		} else {
+-			if (!invalidation_map) {
+-				invalidation_map=(Bit8u*)malloc(4096);
+-				memset(invalidation_map,0,4096);
+-			}
+-#if defined(WORDS_BIGENDIAN) || !defined(C_UNALIGNED_MEMORY)
+-			host_writed(&invalidation_map[addr],
+-				host_readd(&invalidation_map[addr])+0x1010101);
+-#else
+-			(*(Bit32u*)&invalidation_map[addr])+=0x1010101;
+-#endif
+-			if (InvalidateRange(addr,addr+3)) {
+-				cpu.exception.which=SMC_CURRENT_BLOCK;
+-				return true;
+-			}
+-		}
+-		host_writed(hostmem+addr,val);
+-		return false;
+-	}
+-
+-    // add a cache block to this page and note it in the hash map
+-	void AddCacheBlock(CacheBlockDynRec * block) {
+-		Bitu index=1+(block->page.start>>DYN_HASH_SHIFT);
+-		block->hash.next=hash_map[index];	// link to old block at index from the new block
+-		block->hash.index=index;
+-		hash_map[index]=block;				// put new block at hash position
+-		block->page.handler=this;
+-		active_blocks++;
+-	}
+-	// there's a block whose code started in a different page
+-    void AddCrossBlock(CacheBlockDynRec * block) {
+-		block->hash.next=hash_map[0];
+-		block->hash.index=0;
+-		hash_map[0]=block;
+-		block->page.handler=this;
+-		active_blocks++;
+-	}
+-	// remove a cache block
+-	void DelCacheBlock(CacheBlockDynRec * block) {
+-		active_blocks--;
+-		active_count=16;
+-		CacheBlockDynRec * * bwhere=&hash_map[block->hash.index];
+-		while (*bwhere!=block) {
+-			bwhere=&((*bwhere)->hash.next);
+-			//Will crash if a block isn't found, which should never happen.
+-		}
+-		*bwhere=block->hash.next;
+-
+-		// remove the cleared block from the write map
+-		if (GCC_UNLIKELY(block->cache.wmapmask!=NULL)) {
+-			// first part is not influenced by the mask
+-			for (Bitu i=block->page.start;i<block->cache.maskstart;i++) {
+-				if (write_map[i]) write_map[i]--;
+-			}
+-			Bitu maskct=0;
+-			// last part sticks to the writemap mask
+-			for (Bitu i=block->cache.maskstart;i<=block->page.end;i++,maskct++) {
+-				if (write_map[i]) {
+-					// only adjust writemap if it isn't masked
+-					if ((maskct>=block->cache.masklen) || (!block->cache.wmapmask[maskct])) write_map[i]--;
+-				}
+-			}
+-			free(block->cache.wmapmask);
+-			block->cache.wmapmask=NULL;
+-		} else {
+-			for (Bitu i=block->page.start;i<=block->page.end;i++) {
+-				if (write_map[i]) write_map[i]--;
+-			}
+-		}
+-	}
+-
+-	void Release(void) {
+-		MEM_SetPageHandler(phys_page,1,old_pagehandler);	// revert to old handler
+-		PAGING_ClearTLB();
+-
+-		// remove page from the lists
+-		if (prev) prev->next=next;
+-		else cache.used_pages=next;
+-		if (next) next->prev=prev;
+-		else cache.last_page=prev;
+-		next=cache.free_pages;
+-		cache.free_pages=this;
+-		prev=0;
+-	}
+-	void ClearRelease(void) {
+-		// clear out all cache blocks in this page
+-		for (Bitu index=0;index<(1+DYN_PAGE_HASH);index++) {
+-			CacheBlockDynRec * block=hash_map[index];
+-			while (block) {
+-				CacheBlockDynRec * nextblock=block->hash.next;
+-				block->page.handler=0;			// no need, full clear
+-				block->Clear();
+-				block=nextblock;
+-			}
+-		}
+-		Release();	// now can release this page
+-	}
+-
+-	CacheBlockDynRec * FindCacheBlock(Bitu start) {
+-		CacheBlockDynRec * block=hash_map[1+(start>>DYN_HASH_SHIFT)];
+-		// see if there's a cache block present at the start address
+-		while (block) {
+-			if (block->page.start==start) return block;	// found
+-			block=block->hash.next;
+-		}
+-		return 0;	// none found
+-	}
+-
+-	HostPt GetHostReadPt(Bitu phys_page) { 
+-		hostmem=old_pagehandler->GetHostReadPt(phys_page);
+-		return hostmem;
+-	}
+-	HostPt GetHostWritePt(Bitu phys_page) { 
+-		return GetHostReadPt( phys_page );
+-	}
+-public:
+-	// the write map, there are write_map[i] cache blocks that cover the byte at address i
+-	Bit8u write_map[4096];
+-	Bit8u * invalidation_map;
+-	CodePageHandlerDynRec * next, * prev;	// page linking
+-private:
+-	PageHandler * old_pagehandler;
+-
+-	// hash map to quickly find the cache blocks in this page
+-	CacheBlockDynRec * hash_map[1+DYN_PAGE_HASH];
+-
+-	Bitu active_blocks;		// the number of cache blocks in this page
+-	Bitu active_count;		// delaying parameter to not immediately release a page
+-	HostPt hostmem;	
+-	Bitu phys_page;
+-};
+-
+-
+-static INLINE void cache_addunusedblock(CacheBlockDynRec * block) {
+-	// block has become unused, add it to the freelist
+-	block->cache.next=cache.block.free;
+-	cache.block.free=block;
+-}
+-
+-static CacheBlockDynRec * cache_getblock(void) {
+-	// get a free cache block and advance the free pointer
+-	CacheBlockDynRec * ret=cache.block.free;
+-	if (!ret) E_Exit("Ran out of CacheBlocks" );
+-	cache.block.free=ret->cache.next;
+-	ret->cache.next=0;
+-	return ret;
+-}
+-
+-void CacheBlockDynRec::Clear(void) {
+-	Bitu ind;
+-	// check if this is not a cross page block
+-	if (hash.index) for (ind=0;ind<2;ind++) {
+-		CacheBlockDynRec * fromlink=link[ind].from;
+-		link[ind].from=0;
+-		while (fromlink) {
+-			CacheBlockDynRec * nextlink=fromlink->link[ind].next;
+-			// clear the next-link and let the block point to the standard linkcode
+-			fromlink->link[ind].next=0;
+-			fromlink->link[ind].to=&link_blocks[ind];
+-
+-			fromlink=nextlink;
+-		}
+-		if (link[ind].to!=&link_blocks[ind]) {
+-			// not linked to the standard linkcode, find the block that links to this block
+-			CacheBlockDynRec * * wherelink=&link[ind].to->link[ind].from;
+-			while (*wherelink != this && *wherelink) {
+-				wherelink = &(*wherelink)->link[ind].next;
+-			}
+-			// now remove the link
+-			if(*wherelink) 
+-				*wherelink = (*wherelink)->link[ind].next;
+-			else {
+-				LOG(LOG_CPU,LOG_ERROR)("Cache anomaly. please investigate");
+-			}
+-		}
+-	} else 
+-		cache_addunusedblock(this);
+-	if (crossblock) {
+-		// clear out the crossblock (in the page before) as well
+-		crossblock->crossblock=0;
+-		crossblock->Clear();
+-		crossblock=0;
+-	}
+-	if (page.handler) {
+-		// clear out the code page handler
+-		page.handler->DelCacheBlock(this);
+-		page.handler=0;
+-	}
+-	if (cache.wmapmask){
+-		free(cache.wmapmask);
+-		cache.wmapmask=NULL;
+-	}
+-}
+-
+-
+-static CacheBlockDynRec * cache_openblock(void) {
+-	CacheBlockDynRec * block=cache.block.active;
+-	// check for enough space in this block
+-	Bitu size=block->cache.size;
+-	CacheBlockDynRec * nextblock=block->cache.next;
+-	if (block->page.handler) 
+-		block->Clear();
+-	// block size must be at least CACHE_MAXSIZE
+-	while (size<CACHE_MAXSIZE) {
+-		if (!nextblock)
+-			goto skipresize;
+-		// merge blocks
+-		size+=nextblock->cache.size;
+-		CacheBlockDynRec * tempblock=nextblock->cache.next;
+-		if (nextblock->page.handler) 
+-			nextblock->Clear();
+-		// block is free now
+-		cache_addunusedblock(nextblock);
+-		nextblock=tempblock;
+-	}
+-skipresize:
+-	// adjust parameters and open this block
+-	block->cache.size=size;
+-	block->cache.next=nextblock;
+-	cache.pos=block->cache.start;
+-	return block;
+-}
+-
+-static void cache_closeblock(void) {
+-	CacheBlockDynRec * block=cache.block.active;
+-	// links point to the default linking code
+-	block->link[0].to=&link_blocks[0];
+-	block->link[1].to=&link_blocks[1];
+-	block->link[0].from=0;
+-	block->link[1].from=0;
+-	block->link[0].next=0;
+-	block->link[1].next=0;
+-	// close the block with correct alignment
+-	Bitu written=(Bitu)(cache.pos-block->cache.start);
+-	if (written>block->cache.size) {
+-		if (!block->cache.next) {
+-			if (written>block->cache.size+CACHE_MAXSIZE) E_Exit("CacheBlock overrun 1 %d",written-block->cache.size);	
+-		} else E_Exit("CacheBlock overrun 2 written %d size %d",written,block->cache.size);	
+-	} else {
+-		Bitu new_size;
+-		Bitu left=block->cache.size-written;
+-		// smaller than cache align then don't bother to resize
+-		if (left>CACHE_ALIGN) {
+-			new_size=((written-1)|(CACHE_ALIGN-1))+1;
+-			CacheBlockDynRec * newblock=cache_getblock();
+-			// align block now to CACHE_ALIGN
+-			newblock->cache.start=block->cache.start+new_size;
+-			newblock->cache.size=block->cache.size-new_size;
+-			newblock->cache.next=block->cache.next;
+-			block->cache.next=newblock;
+-			block->cache.size=new_size;
+-		}
+-	}
+-	// advance the active block pointer
+-	if (!block->cache.next || (block->cache.next->cache.start>(cache_code_start_ptr + CACHE_TOTAL - CACHE_MAXSIZE))) {
+-//		LOG_MSG("Cache full restarting");
+-		cache.block.active=cache.block.first;
+-	} else {
+-		cache.block.active=block->cache.next;
+-	}
+-}
+-
+-
+-// place an 8bit value into the cache
+-static INLINE void cache_addb(Bit8u val) {
+-	*cache.pos++=val;
+-}
+-
+-// place a 16bit value into the cache
+-static INLINE void cache_addw(Bit16u val) {
+-	*(Bit16u*)cache.pos=val;
+-	cache.pos+=2;
+-}
+-
+-// place a 32bit value into the cache
+-static INLINE void cache_addd(Bit32u val) {
+-	*(Bit32u*)cache.pos=val;
+-	cache.pos+=4;
+-}
+-
+-// place a 64bit value into the cache
+-static INLINE void cache_addq(Bit64u val) {
+-	*(Bit64u*)cache.pos=val;
+-	cache.pos+=8;
+-}
+-
+-
+-static void dyn_return(BlockReturn retcode,bool ret_exception);
+-static void dyn_run_code(void);
+-
+-
+-/* Define temporary pagesize so the MPROTECT case and the regular case share as much code as possible */
+-#if (C_HAVE_MPROTECT)
+-#define PAGESIZE_TEMP PAGESIZE
+-#else 
+-#define PAGESIZE_TEMP 4096
+-#endif
+-
+-static bool cache_initialized = false;
+-
+-static void cache_init(bool enable) {
+-	Bits i;
+-	if (enable) {
+-		// see if cache is already initialized
+-		if (cache_initialized) return;
+-		cache_initialized = true;
+-		if (cache_blocks == NULL) {
+-			// allocate the cache blocks memory
+-			cache_blocks=(CacheBlockDynRec*)malloc(CACHE_BLOCKS*sizeof(CacheBlockDynRec));
+-			if(!cache_blocks) E_Exit("Allocating cache_blocks has failed");
+-			memset(cache_blocks,0,sizeof(CacheBlockDynRec)*CACHE_BLOCKS);
+-			cache.block.free=&cache_blocks[0];
+-			// initialize the cache blocks
+-			for (i=0;i<CACHE_BLOCKS-1;i++) {
+-				cache_blocks[i].link[0].to=(CacheBlockDynRec *)1;
+-				cache_blocks[i].link[1].to=(CacheBlockDynRec *)1;
+-				cache_blocks[i].cache.next=&cache_blocks[i+1];
+-			}
+-		}
+-		if (cache_code_start_ptr==NULL) {
+-			// allocate the code cache memory
+-#if defined (WIN32)
+-			cache_code_start_ptr=(Bit8u*)VirtualAlloc(0,CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP,
+-				MEM_COMMIT,PAGE_EXECUTE_READWRITE);
+-			if (!cache_code_start_ptr)
+-				cache_code_start_ptr=(Bit8u*)malloc(CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP);
+-#else
+-			cache_code_start_ptr=(Bit8u*)malloc(CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP);
+-#endif
+-			if(!cache_code_start_ptr) E_Exit("Allocating dynamic cache failed");
+-
+-			// align the cache at a page boundary
+-			cache_code=(Bit8u*)(((Bitu)cache_code_start_ptr + PAGESIZE_TEMP-1) & ~(PAGESIZE_TEMP-1));//Bitu is same size as a pointer.
+-
+-			cache_code_link_blocks=cache_code;
+-			cache_code=cache_code+PAGESIZE_TEMP;
+-
+-#if (C_HAVE_MPROTECT)
+-			if(mprotect(cache_code_link_blocks,CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP,PROT_WRITE|PROT_READ|PROT_EXEC))
+-				LOG_MSG("Setting execute permission on the code cache has failed");
+-#endif
+-			CacheBlockDynRec * block=cache_getblock();
+-			cache.block.first=block;
+-			cache.block.active=block;
+-			block->cache.start=&cache_code[0];
+-			block->cache.size=CACHE_TOTAL;
+-			block->cache.next=0;						// last block in the list
+-		}
+-		// setup the default blocks for block linkage returns
+-		cache.pos=&cache_code_link_blocks[0];
+-		link_blocks[0].cache.start=cache.pos;
+-		// link code that returns with a special return code
+-		dyn_return(BR_Link1,false);
+-		cache.pos=&cache_code_link_blocks[32];
+-		link_blocks[1].cache.start=cache.pos;
+-		// link code that returns with a special return code
+-		dyn_return(BR_Link2,false);
+-
+-		cache.pos=&cache_code_link_blocks[64];
+-		core_dynrec.runcode=(BlockReturn (*)(Bit8u*))cache.pos;
+-//		link_blocks[1].cache.start=cache.pos;
+-		dyn_run_code();
+-
+-		cache.free_pages=0;
+-		cache.last_page=0;
+-		cache.used_pages=0;
+-		// setup the code pages
+-		for (i=0;i<CACHE_PAGES;i++) {
+-			CodePageHandlerDynRec * newpage=new CodePageHandlerDynRec();
+-			newpage->next=cache.free_pages;
+-			cache.free_pages=newpage;
+-		}
+-	}
+-}
+-
+-static void cache_close(void) {
+-/*	for (;;) {
+-		if (cache.used_pages) {
+-			CodePageHandler * cpage=cache.used_pages;
+-			CodePageHandler * npage=cache.used_pages->next;
+-			cpage->ClearRelease();
+-			delete cpage;
+-			cache.used_pages=npage;
+-		} else break;
+-	}
+-	if (cache_blocks != NULL) {
+-		free(cache_blocks);
+-		cache_blocks = NULL;
+-	}
+-	if (cache_code_start_ptr != NULL) {
+-		### care: under windows VirtualFree() has to be used if
+-		###       VirtualAlloc was used for memory allocation
+-		free(cache_code_start_ptr);
+-		cache_code_start_ptr = NULL;
+-	}
+-	cache_code = NULL;
+-	cache_code_link_blocks = NULL;
+-	cache_initialized = false; */
+-}
+
+Property changes on: src/cpu/core_dynrec/cache.h
+___________________________________________________________________
+Deleted: svn:eol-style
+## -1 +0,0 ##
+-native
+\ No newline at end of property
+Deleted: svn:mime-type
+## -1 +0,0 ##
+-text/plain
+\ No newline at end of property
+Index: src/cpu/core_dynrec/risc_armv4le-common.h
+===================================================================
+--- src/cpu/core_dynrec/risc_armv4le-common.h	(revision 4392)
++++ src/cpu/core_dynrec/risc_armv4le-common.h	(working copy)
+@@ -87,7 +87,7 @@
+ #define HOST_pc HOST_r15
+ 
+ 
+-static void cache_block_closing(Bit8u* block_start,Bitu block_size) {
++static void cache_block_closing(const Bit8u* block_start,Bitu block_size) {
+ #if (__ARM_EABI__)
+ 	//flush cache - eabi
+ 	register unsigned long _beg __asm ("a1") = (unsigned long)(block_start);				// block start
+Index: src/cpu/core_dynrec/risc_armv4le-o3.h
+===================================================================
+--- src/cpu/core_dynrec/risc_armv4le-o3.h	(revision 4392)
++++ src/cpu/core_dynrec/risc_armv4le-o3.h	(working copy)
+@@ -935,7 +935,7 @@
+ 
+ 	// align cache.pos to 32 bytes
+ 	if ((((Bitu)cache.pos) & 0x1f) != 0) {
+-		cache.pos = cache.pos + (32 - (((Bitu)cache.pos) & 0x1f));
++		cache.pos += (32 - (((Bitu)cache.pos) & 0x1f));
+ 	}
+ 
+ 	*(Bit32u*)pos1 = LDR_IMM(FC_SEGS_ADDR, HOST_pc, cache.pos - (pos1 + 8));      // ldr FC_SEGS_ADDR, [pc, #(&Segs)]
+@@ -949,7 +949,7 @@
+ 
+ 	// align cache.pos to 32 bytes
+ 	if ((((Bitu)cache.pos) & 0x1f) != 0) {
+-		cache.pos = cache.pos + (32 - (((Bitu)cache.pos) & 0x1f));
++		cache.pos += (32 - (((Bitu)cache.pos) & 0x1f));
+ 	}
+ #endif
+ }
+Index: src/cpu/core_dynrec/risc_armv4le-thumb-iw.h
+===================================================================
+--- src/cpu/core_dynrec/risc_armv4le-thumb-iw.h	(revision 4392)
++++ src/cpu/core_dynrec/risc_armv4le-thumb-iw.h	(working copy)
+@@ -194,7 +194,7 @@
+ static void cache_checkinstr(Bit32u size) {
+ 	if (cache_datasize == 0) {
+ 		if (cache_datapos != NULL) {
+-			if (cache.pos + size + CACHE_DATA_JUMP >= cache_datapos) {
++			if ((Bit8u*)cache.pos + size + CACHE_DATA_JUMP >= cache_datapos) {
+ 				cache_datapos = NULL;
+ 			}
+ 		}
+@@ -201,7 +201,7 @@
+ 		return;
+ 	}
+ 
+-	if (cache.pos + size + CACHE_DATA_JUMP <= cache_datapos) return;
++	if ((Bit8u*)cache.pos + size + CACHE_DATA_JUMP <= cache_datapos) return;
+ 
+ 	{
+ 		register Bit8u * newcachepos;
+@@ -211,10 +211,10 @@
+ 		cache.pos = newcachepos;
+ 	}
+ 
+-	if (cache.pos + CACHE_DATA_MAX + CACHE_DATA_ALIGN >= cache.block.active->cache.start + cache.block.active->cache.size &&
+-		cache.pos + CACHE_DATA_MIN + CACHE_DATA_ALIGN + (CACHE_DATA_ALIGN - CACHE_ALIGN) < cache.block.active->cache.start + cache.block.active->cache.size)
++	if ((const Bit8u*)cache.pos + CACHE_DATA_MAX + CACHE_DATA_ALIGN >= cache.block.active->cache.start + cache.block.active->cache.size &&
++		(const Bit8u*)cache.pos + CACHE_DATA_MIN + CACHE_DATA_ALIGN + (CACHE_DATA_ALIGN - CACHE_ALIGN) < cache.block.active->cache.start + cache.block.active->cache.size)
+ 	{
+-		cache_datapos = (Bit8u *) (((Bitu)cache.block.active->cache.start + cache.block.active->cache.size - CACHE_DATA_ALIGN) & ~(CACHE_DATA_ALIGN - 1));
++		cache_datapos = (Bit8u *) (((Bitu)cache_pos(cache.block.active->cache.start) + cache.block.active->cache.size - CACHE_DATA_ALIGN) & ~(CACHE_DATA_ALIGN - 1));
+ 	} else {
+ 		register Bit32u cachemodsize;
+ 
+@@ -238,8 +238,8 @@
+ static Bit8u * cache_reservedata(void) {
+ 	// if data pool not yet initialized, then initialize data pool
+ 	if (GCC_UNLIKELY(cache_datapos == NULL)) {
+-		if (cache.pos + CACHE_DATA_MIN + CACHE_DATA_ALIGN < cache.block.active->cache.start + CACHE_DATA_MAX) {
+-			cache_datapos = (Bit8u *) (((Bitu)cache.block.active->cache.start + CACHE_DATA_MAX) & ~(CACHE_DATA_ALIGN - 1));
++		if ((const Bit8u*)cache.pos + CACHE_DATA_MIN + CACHE_DATA_ALIGN < cache.block.active->cache.start + CACHE_DATA_MAX) {
++			cache_datapos = (Bit8u *) (((Bitu)cache_pos(cache.block.active->cache.start) + CACHE_DATA_MAX) & ~(CACHE_DATA_ALIGN - 1));
+ 		}
+ 	}
+ 
+@@ -247,10 +247,10 @@
+ 	if (cache_datasize == 0) {
+ 		// set data pool address is too close (or behind)  cache.pos then set new data pool size
+ 		if (cache.pos + CACHE_DATA_MIN + CACHE_DATA_JUMP /*+ CACHE_DATA_ALIGN*/ > cache_datapos) {
+-			if (cache.pos + CACHE_DATA_MAX + CACHE_DATA_ALIGN >= cache.block.active->cache.start + cache.block.active->cache.size &&
+-				cache.pos + CACHE_DATA_MIN + CACHE_DATA_ALIGN + (CACHE_DATA_ALIGN - CACHE_ALIGN) < cache.block.active->cache.start + cache.block.active->cache.size)
++			if ((const Bit8u*)cache.pos + CACHE_DATA_MAX + CACHE_DATA_ALIGN >= cache.block.active->cache.start + cache.block.active->cache.size &&
++				(const Bit8u*)cache.pos + CACHE_DATA_MIN + CACHE_DATA_ALIGN + (CACHE_DATA_ALIGN - CACHE_ALIGN) < cache.block.active->cache.start + cache.block.active->cache.size)
+ 			{
+-				cache_datapos = (Bit8u *) (((Bitu)cache.block.active->cache.start + cache.block.active->cache.size - CACHE_DATA_ALIGN) & ~(CACHE_DATA_ALIGN - 1));
++				cache_datapos = (Bit8u *) (((Bitu)cache_pos(cache.block.active->cache.start) + cache.block.active->cache.size - CACHE_DATA_ALIGN) & ~(CACHE_DATA_ALIGN - 1));
+ 			} else {
+ 				register Bit32u cachemodsize;
+ 
+@@ -340,7 +340,7 @@
+ 
+ 		cache_checkinstr(4);
+ 
+-		diff = imm - ((Bit32u)cache.pos+4);
++		diff = imm - ((Bit32u)(Bits)cache.pos+4);
+ 
+ 		if ((diff < 1024) && ((imm & 0x03) == 0)) {
+ 			if (((Bit32u)cache.pos & 0x03) == 0) {
+@@ -1051,7 +1051,7 @@
+ 
+ 	// align cache.pos to 32 bytes
+ 	if ((((Bitu)cache.pos) & 0x1f) != 0) {
+-		cache.pos = cache.pos + (32 - (((Bitu)cache.pos) & 0x1f));
++		cache.pos += (32 - (((Bitu)cache.pos) & 0x1f));
+ 	}
+ 
+ 	*(Bit32u*)pos1 = ARM_LDR_IMM(FC_SEGS_ADDR, HOST_pc, cache.pos - (pos1 + 8));      // ldr FC_SEGS_ADDR, [pc, #(&Segs)]
+@@ -1065,7 +1065,7 @@
+ 
+ 	// align cache.pos to 32 bytes
+ 	if ((((Bitu)cache.pos) & 0x1f) != 0) {
+-		cache.pos = cache.pos + (32 - (((Bitu)cache.pos) & 0x1f));
++		cache.pos += (32 - (((Bitu)cache.pos) & 0x1f));
+ 	}
+ }
+ 
+Index: src/cpu/core_dynrec/risc_armv8le.h
+===================================================================
+--- src/cpu/core_dynrec/risc_armv8le.h	(revision 4392)
++++ src/cpu/core_dynrec/risc_armv8le.h	(working copy)
+@@ -894,7 +894,7 @@
+ 
+ 	// align cache.pos to 32 bytes
+ 	if ((((Bitu)cache.pos) & 0x1f) != 0) {
+-		cache.pos = cache.pos + (32 - (((Bitu)cache.pos) & 0x1f));
++		cache.pos += (32 - (((Bitu)cache.pos) & 0x1f));
+ 	}
+ 
+ 	*(Bit32u *)pos1 = LDR64_PC(FC_SEGS_ADDR, cache.pos - pos1);   // ldr FC_SEGS_ADDR, [pc, #(&Segs)]
+@@ -908,7 +908,7 @@
+ 
+ 	// align cache.pos to 32 bytes
+ 	if ((((Bitu)cache.pos) & 0x1f) != 0) {
+-		cache.pos = cache.pos + (32 - (((Bitu)cache.pos) & 0x1f));
++		cache.pos += (32 - (((Bitu)cache.pos) & 0x1f));
+ 	}
+ }
+ 
+@@ -1136,7 +1136,7 @@
+ }
+ #endif
+ 
+-static void cache_block_closing(Bit8u* block_start,Bitu block_size) {
++static void cache_block_closing(const Bit8u* block_start,Bitu block_size) {
+ 	//flush cache - GCC/LLVM builtin
+ 	__builtin___clear_cache((char *)block_start, (char *)(block_start+block_size));
+ }
+Index: src/cpu/core_dynrec/risc_mipsel32.h
+===================================================================
+--- src/cpu/core_dynrec/risc_mipsel32.h	(revision 4392)
++++ src/cpu/core_dynrec/risc_mipsel32.h	(working copy)
+@@ -650,14 +650,15 @@
+ }
+ #endif
+ 
+-static void cache_block_closing(Bit8u* block_start,Bitu block_size) {
++static void cache_block_closing(const Bit8u* block_start,Bitu block_size) {
+ #ifdef PSP
+ // writeback dcache and invalidate icache
++	Bit32u exec_offset = cache_pos(0);
+ 	Bit32u inval_start = ((Bit32u)block_start) & ~63;
+ 	Bit32u inval_end = (((Bit32u)block_start) + block_size + 64) & ~63;
+ 	for (;inval_start < inval_end; inval_start+=64) {
+ 		__builtin_allegrex_cache(0x1a, inval_start);
+-		__builtin_allegrex_cache(0x08, inval_start);
++		__builtin_allegrex_cache(0x08, inval_start+exec_offset);
+ 	}
+ #endif
+ }
+Index: src/cpu/core_dynrec/risc_x64.h
+===================================================================
+--- src/cpu/core_dynrec/risc_x64.h	(revision 4392)
++++ src/cpu/core_dynrec/risc_x64.h	(working copy)
+@@ -702,6 +702,6 @@
+ }
+ #endif
+ 
+-static void cache_block_closing(Bit8u* block_start,Bitu block_size) { }
++static void cache_block_closing(const Bit8u* block_start,Bitu block_size) { }
+ 
+ static void cache_block_before_close(void) { }
+Index: src/cpu/core_dynrec/risc_x86.h
+===================================================================
+--- src/cpu/core_dynrec/risc_x86.h	(revision 4392)
++++ src/cpu/core_dynrec/risc_x86.h	(working copy)
+@@ -299,7 +299,7 @@
+ // generate a call to a parameterless function
+ static void INLINE gen_call_function_raw(void * func) {
+ 	cache_addb(0xe8);
+-	cache_addd((Bit32u)func - (Bit32u)cache.pos-4);
++	cache_addd((Bits)func - (Bits)cache.pos-4);
+ }
+ 
+ // generate a call to a function with paramcount parameters
+@@ -309,7 +309,7 @@
+ 	Bit32u proc_addr=(Bit32u)cache.pos;
+ 	// Do the actual call to the procedure
+ 	cache_addb(0xe8);
+-	cache_addd((Bit32u)func - (Bit32u)cache.pos-4);
++	cache_addd((Bits)func - (Bits)cache.pos-4);
+ 
+ 	// Restore the params of the stack
+ 	if (paramcount) {
+@@ -440,7 +440,8 @@
+ #ifdef DRC_FLAGS_INVALIDATION
+ // called when a call to a function can be replaced by a
+ // call to a simpler function
+-static void gen_fill_function_ptr(Bit8u * pos,void* fct_ptr,Bitu flags_type) {
++static void gen_fill_function_ptr(Bit8u * pos,void* _fct_ptr,Bitu flags_type) {
++	cache_pos fct_ptr((const Bit8u*)_fct_ptr);
+ #ifdef DRC_FLAGS_INVALIDATION_DCODE
+ 	// try to avoid function calls but rather directly fill in code
+ 	switch (flags_type) {
+@@ -511,6 +512,6 @@
+ }
+ #endif
+ 
+-static void cache_block_closing(Bit8u* block_start,Bitu block_size) { }
++static void cache_block_closing(const Bit8u* block_start,Bitu block_size) { }
+ 
+ static void cache_block_before_close(void) { }
+Index: src/cpu/core_dynrec.cpp
+===================================================================
+--- src/cpu/core_dynrec.cpp	(revision 4392)
++++ src/cpu/core_dynrec.cpp	(working copy)
+@@ -28,20 +28,6 @@
+ #include <stddef.h>
+ #include <stdlib.h>
+ 
+-#if defined (WIN32)
+-#include <windows.h>
+-#include <winbase.h>
+-#endif
+-
+-#if (C_HAVE_MPROTECT)
+-#include <sys/mman.h>
+-
+-#include <limits.h>
+-#ifndef PAGESIZE
+-#define PAGESIZE 4096
+-#endif
+-#endif /* C_HAVE_MPROTECT */
+-
+ #include "callback.h"
+ #include "regs.h"
+ #include "mem.h"
+@@ -124,7 +110,7 @@
+ }
+ 
+ static struct {
+-	BlockReturn (*runcode)(Bit8u*);		// points to code that can start a block
++	BlockReturn (*runcode)(const Bit8u*);		// points to code that can start a block
+ 	Bitu callback;				// the occurred callback
+ 	Bitu readdata;				// spare space used when reading from memory
+ 	Bit32u protected_regs[8];	// space to save/restore register values
+@@ -131,7 +117,7 @@
+ } core_dynrec;
+ 
+ 
+-#include "core_dynrec/cache.h"
++#include "cache.h"
+ 
+ #define X86			0x01
+ #define X86_64		0x02
+@@ -325,8 +311,19 @@
+ }
+ 
+ void CPU_Core_Dynrec_Cache_Init(bool enable_cache) {
+-	// Initialize code cache and dynamic blocks
+-	cache_init(enable_cache);
++	// Initialize code cache
++	const Bit8u* p = cache_init(enable_cache);
++	if (p) {
++		cache.pos = p;
++		// setup prologue/epilogue code
++		core_dynrec.runcode=(BlockReturn (*)(const Bit8u*))(const Bit8u*)cache.pos;
++		dyn_run_code();
++		// setup the default blocks for block linkage returns
++		link_blocks[0].cache.start=cache.pos;
++		dyn_return(BR_Link1,false);
++		link_blocks[1].cache.start=cache.pos;
++		dyn_return(BR_Link2,false);
++	}
+ }
+ 
+ void CPU_Core_Dynrec_Cache_Close(void) {
+Index: visualc_net/dosbox.vcproj
+===================================================================
+--- visualc_net/dosbox.vcproj	(revision 4392)
++++ visualc_net/dosbox.vcproj	(working copy)
+@@ -206,6 +206,9 @@
+ 				<File
+ 					RelativePath="..\src\cpu\paging.cpp">
+ 				</File>
++				<File
++					RelativePath="..\src\cpu\cache.h">
++				</File>
+ 				<Filter
+ 					Name="core_normal"
+ 					Filter="">
+@@ -266,9 +269,6 @@
+ 					Name="core_dyn_x86"
+ 					Filter="">
+ 					<File
+-						RelativePath="..\src\cpu\core_dyn_x86\cache.h">
+-					</File>
+-					<File
+ 						RelativePath="..\src\cpu\core_dyn_x86\decoder.h">
+ 					</File>
+ 					<File
+@@ -284,6 +284,9 @@
+ 						RelativePath="..\src\cpu\core_dyn_x86\risc_x86.h">
+ 					</File>
+ 					<File
++						RelativePath="..\src\cpu\core_dyn_x86\risc_x64.h">
++					</File>
++					<File
+ 						RelativePath="..\src\cpu\core_dyn_x86\string.h">
+ 					</File>
+ 				</Filter>
+@@ -291,9 +294,6 @@
+ 					Name="core_dynrec"
+ 					Filter="">
+ 					<File
+-						RelativePath="..\src\cpu\core_dynrec\cache.h">
+-					</File>
+-					<File
+ 						RelativePath="..\src\cpu\core_dynrec\decoder.h">
+ 					</File>
+ 					<File

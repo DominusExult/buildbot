@@ -7,30 +7,16 @@ headermain DOSBOX
 
 cd ~/Code/snapshots/dosbox
 
-# update svn
 #svn is no longer included in macOS 10.15+ so you need to provide your own and make an alias for that in your environment
+#revert svn as we have probably applied the dynrec patch for ARM
+svn revert . -R > /dev/null 2> >(teelog >&2) || error SVN revert
+#remove the unversioned cache.h file for smooth patch application later
+rm -f src/cpu/cache.h
+# update svn
 svn update --depth=infinity 2> >(teelog >&2) || error SVN update
 
 #configure options for all arches
 CONF_OPT='-q --disable-sdltest --disable-alsatest'
-
-#arm64
-header arm64
-ARCH=arm64
-SDK=11.0
-DEPLOYMENT=11.0
-flags
-gcc
-autogen
-CONF_ARGS="--prefix=/opt/$ARCH"
-{
-	config
-	patch -p0 -i ~/code/sh/dosbox-patches/arm64.diff > /dev/null ||  error arm64 patch
-	makes
-	/usr/bin/strip ./src/dosbox -o ./src/dosbox_arm64 ||  error $ARCH strip
-} 2>&1 | teelog ; pipestatus || return
-
-make -s distclean > /dev/null
 
 #x86_64
 header x86_64
@@ -83,6 +69,25 @@ CONF_ARGS="--prefix=/opt/$ARCH"
 	makes
 	strip ./src/dosbox -o ./src/dosbox_ppc
 } 2>&1 | teelog -a ; pipestatus || return
+
+#arm64
+header arm64
+ARCH=arm64
+SDK=11.0
+DEPLOYMENT=11.0
+flags
+gcc
+patch -p0 -i ~/code/sh/dosbox-patches/dosbox_wx.patch > /dev/null ||  error wx patch patch
+autogen
+CONF_ARGS="--prefix=/opt/$ARCH"
+{
+	config
+	patch -p0 -i ~/code/sh/dosbox-patches/arm64.diff > /dev/null ||  error arm64 patch
+	makes
+	/usr/bin/strip ./src/dosbox -o ./src/dosbox_arm64 ||  error $ARCH strip
+} 2>&1 | teelog ; pipestatus || return
+
+make -s distclean > /dev/null
 
 #deploy
 deploy
