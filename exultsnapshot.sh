@@ -62,6 +62,9 @@ deploy
 	#make fat exult binary
 	lipo -create -arch arm64 exult_arm64 -arch x86_64 exult_x86_64 -arch i386 exult_i386 -output exult || error lipo
 
+	#replace BundleVersion with date
+	sed -i '' "s|1.7.0git<|1.7.0 $(date +"%Y-%m-%d-%H%M")<|" info.plist
+
 	#bundle
 	make -s bundle || error bundle
 
