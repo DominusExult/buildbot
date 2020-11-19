@@ -95,7 +95,7 @@ CONF_ARGS="--prefix=/opt/$ARCH"
 deploy
 {
 	# make fat build
-	lipo -create -arch arm64 ./src/dosbox_arm64 -arch x86_64 ./src/dosbox_x86_64 -arch i386 ./src/dosbox_i386 -arch ppc ./src/dosbox_ppc -output ./src/DOSBox  ||  error lipo
+	lipo -create -arch arm64 ./src/dosbox_arm64 -arch x86_64 ./src/dosbox_x86_64 -arch i386 ./src/dosbox_i386 -arch ppc ./src/dosbox_ppc -output ./src/dosbox  ||  error lipo
 
 	# bundle
 	bundle_name=DOSBoxSVN.app
@@ -113,9 +113,6 @@ deploy
 		cp README $bundle_name/Contents/Documents
 		cp THANKS $bundle_name/Contents/Documents
 
-	# codesign to satisfy OS X 10.8+ Gatekeeper, Remove old Codesign to make Notarization happy
-	codesign --options runtime --deep --force --sign "Developer ID Application" $bundle_name --entitlements $bundle_name/contents/entitlements.plist ||  error codesign
-
 	# make disk image
 	dmg_name=DOSBox-snapshot
 		mkdir -p $dmg_name
@@ -129,25 +126,26 @@ deploy
 		SetFile -t ttro -c ttxt ./$dmg_name/News
 		SetFile -t ttro -c ttxt ./$dmg_name/ReadMe
 		SetFile -t ttro -c ttxt ./$dmg_name/Thanks
-		cp -R $bundle_name ./$dmg_name/
+		mv -f $bundle_name ./$dmg_name/
+		# codesign to satisfy OS X 10.8+ Gatekeeper
+		codesign --options runtime --deep --force --sign "Developer ID Application" ./$dmg_name/$bundle_name --entitlements ./$dmg_name/$bundle_name/contents/entitlements.plist ||  error codesign
 		hdiutil create -ov -format UDZO -imagekey zlib-level=9 -fs HFS+ \
 						-srcfolder $dmg_name \
 						-volname "DOSBox SVN snapshot$REVISION" \
 						$dmg_name.dmg || error disk image
-
-	# copy app to applications and file the snapshots
-	cp -R ./src/DOSBoxSVN.app /Applications/
-	cp -p Dosbox-Snapshot.dmg ~/Snapshots/dosbox/"`date +%y-%m-%d-%H%M` DOSBox$REVISION.dmg"
 	
 	# Notarize it
 	# see https://developer.apple.com/documentation/xcode/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow
 	xcrun altool --notarize-app --primary-bundle-id "com.dosbox.dmg" -u "AC_USERNAME" -p "@keychain:AC_PASSWORD" --file $dmg_name.dmg  ||  error notarize
-	mv $dmg_name.dmg ~/Snapshots/dosbox/
+		
+	# copy app to applications and file the snapshots
+	cp -R ./$dmg_name/$bundle_name /Applications/
+	cp -p $dmg_name.dmg ~/Snapshots/dosbox/"`date +%y-%m-%d-%H%M` DOSBox$REVISION.dmg"
+	mv -f $dmg_name.dmg ~/Snapshots/dosbox/
 
 	# "upload"
 	cp -p ~/Snapshots/dosbox/Dosbox-Snapshot.dmg ~/dropbox/public/dosbox/
 } 2>&1 | teelog -a ; pipestatus || return
-
 
 # cleanup
 make -s distclean > /dev/null

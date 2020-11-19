@@ -7,7 +7,7 @@
 	<key>CFBundleDisplayName</key>
 	<string>DOSBox</string>
 	<key>CFBundleExecutable</key>
-	<string>DOSBox</string>
+	<string>dosbox</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.dosbox.dosbox</string>
 	<key>CFBundleGetInfoString</key>
