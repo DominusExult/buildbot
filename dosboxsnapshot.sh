@@ -140,8 +140,9 @@ deploy
 	cp -p Dosbox-Snapshot.dmg ~/Snapshots/dosbox/"`date +%y-%m-%d-%H%M` DOSBox$REVISION.dmg"
 	
 	# Notarize it
-	xcrun altool --notarize-app --primary-bundle-id "com.dosbox.dmg" --username "APPLE ID" --password "PASSWORD" --file Dosbox-Snapshot.dmg  ||  error notarize
-	mv Dosbox-Snapshot.dmg ~/Snapshots/dosbox/
+	# see https://developer.apple.com/documentation/xcode/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow
+	xcrun altool --notarize-app --primary-bundle-id "com.dosbox.dmg" -u "AC_USERNAME" -p "@keychain:AC_PASSWORD" --file $dmg_name.dmg  ||  error notarize
+	mv $dmg_name.dmg ~/Snapshots/dosbox/
 
 	# "upload"
 	cp -p ~/Snapshots/dosbox/Dosbox-Snapshot.dmg ~/dropbox/public/dosbox/

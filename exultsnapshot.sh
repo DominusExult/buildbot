@@ -70,7 +70,8 @@ deploy
 	make -s osxdmg || error disk image
 
 	#Notarize it
-	xcrun altool --notarize-app --primary-bundle-id "info.exult.dmg" --username "APPLE ID" --password "PASSWORD" --file Exult-snapshot.dmg || error notarization
+	# see https://developer.apple.com/documentation/xcode/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow
+	xcrun altool --notarize-app --primary-bundle-id "info.exult.dmg" -u "AC_USERNAME" -p "@keychain:AC_PASSWORD" --file Exult-snapshot.dmg || error notarization
 
 	#file it
 	cp -p Exult-snapshot.dmg ~/Snapshots/exult/"`date +%y-%m-%d-%H%M` Exult$REVISION.dmg"
