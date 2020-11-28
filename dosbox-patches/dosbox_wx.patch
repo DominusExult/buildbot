@@ -786,7 +786,7 @@ Index: src/cpu/cache.h
 +			}
 +			if (!cache_code_start_ptr) {
 +				cache_code_start_ptr=(Bit8u*)mmap(NULL,CACHE_ALLOC_SIZE,PROT_READ|PROT_WRITE|PROT_EXEC,
-+					MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
++					MAP_PRIVATE|MAP_ANONYMOUS|MAP_JIT,-1,0);
 +				if (cache_code_start_ptr==MAP_FAILED)
 +					cache_code_start_ptr=NULL;
 +			}
