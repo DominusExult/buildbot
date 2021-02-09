@@ -26,7 +26,7 @@ Build " & subj & " snapshot?
 			activate
 			tell application "System Events" to tell process "Terminal" to keystroke "t" using {command down}
 			delay 1
-			do script "cd ~/code/sh; . " & subj & "snapshot.sh" in selected tab of the front window
+			do script "cd ~/code/sh; ./" & subj & "snapshot.sh" in selected tab of the front window
 		end tell
 	end if
 end tell

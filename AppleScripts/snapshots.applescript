@@ -95,9 +95,9 @@ Build " & subj & " snapshot?
 				activate
 				tell application "System Events" to tell process "Terminal" to keystroke "t" using {command down}
 				repeat while contents of selected tab of window 1 starts with linefeed
-				delay 0.01
-			end repeat
-				do script "cd ~/code/sh; . " & subj & "snapshot.sh" in selected tab of the front window
+					delay 0.01
+				end repeat
+				do script "cd ~/code/sh; ./" & subj & "snapshot.sh" in selected tab of the front window
 			end tell
 			# if the build is canceled delete the first lockfile
 		else if button returned of snapshotdialog = "No" then
