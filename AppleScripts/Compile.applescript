@@ -16,14 +16,13 @@ end tell
 set options to (choose from list file_list with prompt "Run this script")
 if options is not false then
 	activate application "Terminal"
-	tell application "System Events" to tell process "Terminal"
-		keystroke "t" using {command down}
-	end tell
+	tell application "Terminal" to delay 0.25
+	tell application "System Events" to tell process "Terminal" to keystroke "t" using {command down}
 	tell application "Terminal"
 		repeat with win in windows
 			try
 				if get frontmost of win is true then
-					do script "cd ~/code/sh;  .  " & first item of options in (selected tab of win)
+					do script "cd ~/code/sh;  ./" & first item of options in (selected tab of win)
 				end if
 			end try
 		end repeat
