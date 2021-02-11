@@ -56,6 +56,9 @@ using terms from application "Mail"
 			IF there is another commit being detected while this script loops and 
 			waits for the first lockfile to be deleted, the new AppleScript process will quit.
 		*)
+		launch application "Terminal"
+		launch application "System Events"
+		delay 0.2
 		try
 			lockfile1 as alias
 			try
@@ -91,9 +94,13 @@ using terms from application "Mail"
 Build " & subj & " snapshot?
 " buttons {"No", "OK"} giving up after 110 with icon alias icon_path with title subj
 		if button returned of snapshotdialog = "OK" or gave up of snapshotdialog is true then
+			launch application "Terminal"
+			launch application "System Events"
+			delay 0.2
+			activate application "Terminal"
+			tell application "Terminal" to delay 0.25
+			tell application "System Events" to tell process "Terminal" to keystroke "t" using {command down}
 			tell application "Terminal"
-				activate
-				tell application "System Events" to tell process "Terminal" to keystroke "t" using {command down}
 				repeat while contents of selected tab of window 1 starts with linefeed
 					delay 0.01
 				end repeat
