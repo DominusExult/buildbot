@@ -8,7 +8,7 @@ cd ~/code/snapshots/exult
 /usr/bin/git pull --rebase=true 2> >(teelog >&2) || error Git pull
 
 #configure options for all arches
-CONF_OPT="-q  --enable-exult-studio-support --enable-mt32emu --disable-alsa --disable-fluidsynth --disable-timidity-midi --disable-tools"
+CONF_OPT="-q --enable-exult-studio-support --enable-mt32emu --enable-fluidsynth --disable-alsa --disable-timidity-midi --disable-tools"
 export EXPACK=/opt/x86_64/bin/expack
 
 #i386
