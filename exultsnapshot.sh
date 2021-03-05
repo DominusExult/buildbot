@@ -106,8 +106,7 @@ deploy
 	cp -R Exult_Studio.app /Applications/
 
 	#upload
-	scp -p -i ~/.ssh/id_dsa ~/Snapshots/exult/Exult-snapshot.dmg $USER,exult@web.sourceforge.net:htdocs/snapshots/Exult-snapshot.dmg || error Upload
-	scp -p -i ~/.ssh/id_dsa ~/Snapshots/exult/ExultStudio-snapshot.dmg $USER,exult@web.sourceforge.net:htdocs/snapshots/ExultStudio-snapshot.dmg || error Studio Upload
+	scp -p -i ~/.ssh/id_dsa ~/Snapshots/exult/Exult-snapshot.dmg ~/Snapshots/exult/ExultStudio-snapshot.dmg $USER,exult@web.sourceforge.net:htdocs/snapshots/Exult-snapshot.dmg || error Upload
 } 2>&1 | teelog -a ; pipestatus || return
 
 #clean
