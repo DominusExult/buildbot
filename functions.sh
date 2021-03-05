@@ -136,7 +136,7 @@ config() {
 
 stripp() {
 	if [ "$ARCH" != "" ]; then
-		strip $1 -o $1_$ARCH || error $HEADER strip
+		strip $1 -o $1.$ARCH || error $HEADER strip
 	else
 		strip $1 -o $1 || error $1 strip
 	fi

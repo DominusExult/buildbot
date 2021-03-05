@@ -57,7 +57,7 @@ build 2>&1 | teelog -a ; pipestatus || return
 deploy
 {
 	#make fat universal binary
-	lipo -create -arch x86_64 nuvie_x86_64 -arch i386 nuvie_i386 -arch ppc nuvie_ppc -output nuvie || error lipo
+	lipo -create -arch x86_64 nuvie.x86_64 -arch i386 nuvie.i386 -arch ppc nuvie.ppc -output nuvie || error lipo
 
 	#bundle
 	make -s bundle || error bundle

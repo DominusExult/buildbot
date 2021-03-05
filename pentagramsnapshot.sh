@@ -47,7 +47,7 @@ build 2>&1 | teelog -a ; pipestatus || return
 deploy
 {
 	#make fat binary
-	lipo -create -arch x86_64 pentagram_x86_64 -arch i386 pentagram_i386 -arch ppc pentagram_ppc -output pentagram || error lipo
+	lipo -create -arch x86_64 pentagram.x86_64 -arch i386 pentagram.i386 -arch ppc pentagram.ppc -output pentagram || error lipo
 	#bundle
 	make -s bundle || error bundle
 

@@ -95,7 +95,7 @@ CONF_ARGS="--prefix=/opt/$ARCH"
 deploy
 {
 	# make fat build
-	lipo -create -arch arm64 ./src/dosbox_arm64 -arch x86_64 ./src/dosbox_x86_64 -arch i386 ./src/dosbox_i386 -arch ppc ./src/dosbox_ppc -output ./src/dosbox  ||  error lipo
+	lipo -create -arch arm64 ./src/dosbox.arm64 -arch x86_64 ./src/dosbox.x86_64 -arch i386 ./src/dosbox.i386 -arch ppc ./src/dosbox.ppc -output ./src/dosbox  ||  error lipo
 
 	# bundle
 	bundle_name=DOSBoxSVN.app

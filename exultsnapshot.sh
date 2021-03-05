@@ -8,7 +8,7 @@ cd ~/code/snapshots/exult
 /usr/bin/git pull --rebase=true 2> >(teelog >&2) || error Git pull
 
 #configure options for all arches
-CONF_OPT="-q  --enable-exult-studio-support --enable-mt32emu --enable-static-libraries --disable-alsa --disable-fluidsynth --disable-timidity-midi --disable-tools"
+CONF_OPT="-q  --enable-exult-studio-support --enable-mt32emu --disable-alsa --disable-fluidsynth --disable-timidity-midi --disable-tools"
 export EXPACK=/opt/x86_64/bin/expack
 
 #i386
@@ -18,7 +18,6 @@ SDK=10.11
 DEPLOYMENT=10.7
 flags
 gcc
-CONF_ARGS="--with-macosx-static-lib-path=/opt/$ARCH/lib"
 autogen
 build 2>&1 | teelog -a ; pipestatus || return
 
@@ -29,7 +28,6 @@ SDK=11.0
 DEPLOYMENT=11.0
 flags
 gcc
-CONF_ARGS="--with-macosx-static-lib-path=/opt/$ARCH/lib"
 #only codesign on the native arch
 if [ $(uname -m) = $ARCH ]; then
 	CONF_ARGS="$CONF_ARGS --with-macosx-code-signature"
@@ -44,7 +42,7 @@ SDK=10.15
 DEPLOYMENT=10.10
 flags
 gcc
-CONF_ARGS="--with-macosx-static-lib-path=/opt/$ARCH/lib --enable-exult-studio --enable-exult-studio-support"
+CONF_ARGS=" --enable-exult-studio --enable-exult-studio-support"
 #only codesign on the native arch
 if [ $(uname -m) = $ARCH ]; then
 	CONF_ARGS="$CONF_ARGS --with-macosx-code-signature"
@@ -52,10 +50,10 @@ fi
 #building Exult Studio for 64bit as well
 export PREFIX=/opt/gtk3
 export PATH=$PREFIX/bin/:$PATH
-export CPPFLAGS='-I'$PREFIX'/include '$CPPFLAGS
-export CFLAGS='-I'$PREFIX'/include '$CFLAGS
-export CXXFLAGS='-I'$PREFIX'/include '$CXXFLAGS
-export LDFLAGS='-L'$PREFIX'/lib '$LDFLAGS
+export CPPFLAGS=$CPPFLAGS' -I'$PREFIX'/include'
+export CFLAGS=$CFLAGS' -I'$PREFIX'/include'
+export CXXFLAGS=$CXXFLAGS' -I'$PREFIX'/include'
+export LDFLAGS=$LDFLAGS' -L'$PREFIX'/lib'
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 autogen
 build 2>&1 | teelog ; pipestatus || return
@@ -63,8 +61,21 @@ build 2>&1 | teelog ; pipestatus || return
 #deploy
 deploy
 {
+	# dylibbundler on all arches and codesign the dylibs
+	# 	first create the bundle resources folder to put the libs in
+	mkdir -p Exult.app/Contents/Resources
+	# 	arm64
+	dylibbundler -od -b -x exult.arm64 -d exult.app/Contents/Resources/lib_arm64/ -p @executable_path/../Resources/lib_arm64/ -i /usr/lib/ > /dev/null
+	codesign --options runtime -f -s "Developer ID Application" exult.app/contents/resources/lib_arm64/*.dylib
+	# 	i386
+	dylibbundler -od -b -x exult.i386 -d exult.app/Contents/Resources/lib_i386 -p @executable_path/../Resources/lib_i386 -i /usr/lib > /dev/null
+	codesign --options runtime -f -s "Developer ID Application" exult.app/contents/resources/lib_i386/*.dylib
+	# 	x86_64
+	dylibbundler -od -b -x exult.x86_64 -d exult.app/Contents/Resources/lib_x86_64 -p @executable_path/../Resources/lib_x86_64 -i /usr/lib > /dev/null
+	codesign --options runtime -f -s "Developer ID Application" exult.app/contents/resources/lib_x86_64/*.dylib
+	
 	#make fat exult binary
-	lipo -create -arch arm64 exult_arm64 -arch x86_64 exult_x86_64 -arch i386 exult_i386 -output exult || error lipo
+	lipo -create -arch arm64 exult.arm64 -arch x86_64 exult.x86_64 -arch i386 exult.i386 -output exult || error lipo
 
 	#replace BundleVersion with date
 	sed -i '' "s|1.7.0git<|1.7.0 $(date +"%Y-%m-%d-%H%M")<|" info.plist
@@ -72,6 +83,7 @@ deploy
 	#bundle
 	make -s bundle || error bundle
 	make -s studiobundle || error studiobundle
+
 
 	#image
 	export REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"
