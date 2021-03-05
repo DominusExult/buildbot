@@ -50,10 +50,10 @@ fi
 #building Exult Studio for 64bit as well
 export PREFIX=/opt/gtk3
 export PATH=$PREFIX/bin/:$PATH
-export CPPFLAGS=$CPPFLAGS' -I'$PREFIX'/include'
-export CFLAGS=$CFLAGS' -I'$PREFIX'/include'
-export CXXFLAGS=$CXXFLAGS' -I'$PREFIX'/include'
-export LDFLAGS=$LDFLAGS' -L'$PREFIX'/lib'
+export CPPFLAGS='-I'$PREFIX'/include '$CPPFLAGS
+export CFLAGS='-I'$PREFIX'/include '$CFLAGS
+export CXXFLAGS='-I'$PREFIX'/include '$CXXFLAGS
+export LDFLAGS='-L'$PREFIX'/lib '$LDFLAGS
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 autogen
 build 2>&1 | teelog ; pipestatus || return
@@ -61,19 +61,20 @@ build 2>&1 | teelog ; pipestatus || return
 #deploy
 deploy
 {
+	bundle_name=Exult.app
 	# dylibbundler on all arches and codesign the dylibs
 	# 	first create the bundle resources folder to put the libs in
-	mkdir -p Exult.app/Contents/Resources
+	mkdir -p $bundle_name/Contents/Resources
 	# 	arm64
-	dylibbundler -od -b -x exult.arm64 -d exult.app/Contents/Resources/lib_arm64/ -p @executable_path/../Resources/lib_arm64/ -i /usr/lib/ > /dev/null
-	codesign --options runtime -f -s "Developer ID Application" exult.app/contents/resources/lib_arm64/*.dylib
-	# 	i386
-	dylibbundler -od -b -x exult.i386 -d exult.app/Contents/Resources/lib_i386 -p @executable_path/../Resources/lib_i386 -i /usr/lib > /dev/null
-	codesign --options runtime -f -s "Developer ID Application" exult.app/contents/resources/lib_i386/*.dylib
+	dylibbundler -od -b -x exult.arm64 -d $bundle_name/Contents/Resources/lib_arm64/ -p @executable_path/../Resources/lib_arm64/ -i /usr/lib/ > /dev/null
+	codesign --options runtime -f -s "Developer ID Application" $bundle_name/contents/resources/lib_arm64/*.dylib
 	# 	x86_64
-	dylibbundler -od -b -x exult.x86_64 -d exult.app/Contents/Resources/lib_x86_64 -p @executable_path/../Resources/lib_x86_64 -i /usr/lib > /dev/null
-	codesign --options runtime -f -s "Developer ID Application" exult.app/contents/resources/lib_x86_64/*.dylib
-	
+	dylibbundler -od -b -x exult.x86_64 -d $bundle_name/Contents/Resources/lib_x86_64 -p @executable_path/../Resources/lib_x86_64 -i /usr/lib > /dev/null
+	codesign --options runtime -f -s "Developer ID Application" $bundle_name/contents/resources/lib_x86_64/*.dylib
+	# 	i386
+	dylibbundler -od -b -x exult.i386 -d $bundle_name/Contents/Resources/lib_i386 -p @executable_path/../Resources/lib_i386 -i /usr/lib > /dev/null
+	codesign --options runtime -f -s "Developer ID Application" $bundle_name/contents/resources/lib_i386/*.dylib
+
 	#make fat exult binary
 	lipo -create -arch arm64 exult.arm64 -arch x86_64 exult.x86_64 -arch i386 exult.i386 -output exult || error lipo
 

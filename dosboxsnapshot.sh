@@ -4,7 +4,6 @@
 
 headermain DOSBOX
 
-
 cd ~/Code/snapshots/dosbox
 
 # svn is no longer included in macOS 10.15+ so you need to provide your own and make an alias for that in your environment
@@ -20,24 +19,6 @@ REVISION=" r$(svnversion)"
 # configure options for all arches
 CONF_OPT='-q --disable-sdltest --disable-alsatest'
 
-# x86_64
-header x86_64
-ARCH=x86_64
-SDK=10.14
-DEPLOYMENT=10.10
-flags
-gcc
-autogen
-CONF_ARGS="--prefix=/opt/$ARCH"
-{
-	config
-	patch -p0 -i ~/code/sh/dosbox-patches/intel64.diff > /dev/null ||  error intel64 patch
-	makes
-	strip ./src/dosbox -o ./src/dosbox_x86_64 ||  error $ARCH strip
-} 2>&1 | teelog ; pipestatus || return
-
-make -s distclean > /dev/null
-
 # i386
 header i386
 ARCH=i386
@@ -49,12 +30,11 @@ autogen
 CONF_ARGS="--prefix=/opt/$ARCH"
 {
 	config
-	patch -p0 -i ~/code/sh/dosbox-patches/intel.diff > /dev/null ||  error intel patch
 	makes
-	strip ./src/dosbox -o ./src/dosbox_i386 ||  error $ARCH strip
+	strip ./src/dosbox -o ./src/dosbox.i386 ||  error $ARCH strip
 } 2>&1 | teelog ; pipestatus || return
 
-make -s distclean > /dev/null
+make -s clean > /dev/null
 
 # ppc
 header PPC
@@ -69,15 +49,15 @@ CONF_ARGS="--prefix=/opt/$ARCH"
 	config
 	patch -p0 -i ~/code/sh/dosbox-patches/ppc.diff > /dev/null ||  error ppc patch
 	makes
-	strip ./src/dosbox -o ./src/dosbox_ppc
+	strip ./src/dosbox -o ./src/dosbox.ppc
 } 2>&1 | teelog -a ; pipestatus || return
 
-make -s distclean > /dev/null
+make -s clean > /dev/null
 
 # arm64
 header arm64
 ARCH=arm64
-SDK=11.0
+SDK=11.1
 DEPLOYMENT=11.0
 flags
 gcc
@@ -86,19 +66,50 @@ autogen
 CONF_ARGS="--prefix=/opt/$ARCH"
 {
 	config
-	patch -p0 -i ~/code/sh/dosbox-patches/arm64.diff > /dev/null ||  error arm64 patch
 	makes
-	strip ./src/dosbox -o ./src/dosbox_arm64 ||  error $ARCH strip
+	strip ./src/dosbox -o ./src/dosbox.arm64 ||  error $ARCH strip
+} 2>&1 | teelog ; pipestatus || return
+
+make -s clean > /dev/null
+
+# x86_64
+header x86_64
+ARCH=x86_64
+SDK=10.15
+DEPLOYMENT=10.10
+flags
+gcc
+autogen
+CONF_ARGS="--prefix=/opt/$ARCH"
+{
+	config
+	makes
+	strip ./src/dosbox -o ./src/dosbox.x86_64 ||  error $ARCH strip
 } 2>&1 | teelog ; pipestatus || return
 
 # deploy
 deploy
 {
+	bundle_name=DOSBoxSVN.app
+	# dylibbundler on all arches and codesign the dylibs
+	# 	first create the bundle resources folder to put the libs in
+	mkdir -p $bundle_name/Contents/Resources
+	# 	arm64
+	dylibbundler -od -b -x ./src/dosbox.arm64 -d $bundle_name/Contents/Resources/lib_arm64/ -p @executable_path/../Resources/lib_arm64/ -i /usr/lib/ > /dev/null
+	codesign --options runtime -f -s "Developer ID Application" $bundle_name/contents/resources/lib_arm64/*.dylib
+	# 	x86_64
+	dylibbundler -od -b -x ./src/dosbox.x86_64 -d $bundle_name/Contents/Resources/lib_x86_64 -p @executable_path/../Resources/lib_x86_64 -i /usr/lib > /dev/null
+	codesign --options runtime -f -s "Developer ID Application" $bundle_name/contents/resources/lib_x86_64/*.dylib
+	# 	i386
+	dylibbundler -od -b -x ./src/dosbox.i386 -d $bundle_name/Contents/Resources/lib_i386 -p @executable_path/../Resources/lib_i386 -i /usr/lib > /dev/null
+	codesign --options runtime -f -s "Developer ID Application" $bundle_name/contents/resources/lib_i386/*.dylib
+	# 	ppc
+	# 	won't work as notarization will not let binaries compiled agains SDK < 10.9 through - So you need to keep the ppc build static
+
 	# make fat build
 	lipo -create -arch arm64 ./src/dosbox.arm64 -arch x86_64 ./src/dosbox.x86_64 -arch i386 ./src/dosbox.i386 -arch ppc ./src/dosbox.ppc -output ./src/dosbox  ||  error lipo
 
 	# bundle
-	bundle_name=DOSBoxSVN.app
 		mkdir -p $bundle_name/Contents/MacOS
 		mkdir -p $bundle_name/Contents/Resources
 		mkdir -p $bundle_name/Contents/Documents
@@ -149,7 +160,7 @@ deploy
 
 # cleanup
 make -s distclean > /dev/null
-rm -r $dmg_name
+rm -r DOSBox-snapshot
 success
 # SDL2 builds are broken atm
 #cd ~/code/sh;  .  dosboxsdl2snapshot.sh
