@@ -34,8 +34,6 @@ CONF_ARGS="--prefix=/opt/$ARCH"
 	strip ./src/dosbox -o ./src/dosbox.i386 ||  error $ARCH strip
 } 2>&1 | teelog ; pipestatus || return
 
-make -s clean > /dev/null
-
 # ppc
 header PPC
 ARCH=ppc
@@ -52,8 +50,6 @@ CONF_ARGS="--prefix=/opt/$ARCH"
 	strip ./src/dosbox -o ./src/dosbox.ppc
 } 2>&1 | teelog -a ; pipestatus || return
 
-make -s clean > /dev/null
-
 # arm64
 header arm64
 ARCH=arm64
@@ -69,8 +65,6 @@ CONF_ARGS="--prefix=/opt/$ARCH"
 	makes
 	strip ./src/dosbox -o ./src/dosbox.arm64 ||  error $ARCH strip
 } 2>&1 | teelog ; pipestatus || return
-
-make -s clean > /dev/null
 
 # x86_64
 header x86_64
@@ -116,8 +110,7 @@ deploy
 		cp ./src/dosbox $bundle_name/Contents/MacOS/
 		echo "APPL????" > $bundle_name/Contents/PkgInfo
 		cp ~/code/sh/dosbox-patches/Info.plist $bundle_name/Contents/
-		cp ~/code/sh/dosbox-patches/entitlements.plist $bundle_name/Contents/
-		cp ~/code/sh/dosbox-patches/dosbox.icns $bundle_name/Contents/Resources/
+		cp ./src/platforms/macosx/dosbox.icns $bundle_name/Contents/Resources/
 		cp AUTHORS $bundle_name/Contents/Documents
 		cp COPYING $bundle_name/Contents/Documents
 		cp NEWS $bundle_name/Contents/Documents
@@ -139,7 +132,7 @@ deploy
 		SetFile -t ttro -c ttxt ./$dmg_name/Thanks
 		mv -f $bundle_name ./$dmg_name/
 		# codesign to satisfy OS X 10.8+ Gatekeeper
-		codesign --options runtime --deep --force --sign "Developer ID Application" ./$dmg_name/$bundle_name --entitlements ./$dmg_name/$bundle_name/contents/entitlements.plist ||  error codesign
+		codesign --options runtime --deep --force --sign "Developer ID Application" ./$dmg_name/$bundle_name --entitlements ~/code/sh/dosbox-patches/entitlements.plist ||  error codesign
 		hdiutil create -ov -format UDZO -imagekey zlib-level=9 -fs HFS+ \
 						-srcfolder $dmg_name \
 						-volname "DOSBox SVN snapshot$REVISION" \
