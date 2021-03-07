@@ -107,9 +107,9 @@ gcc() {
 
 #-------------dylibbundle and codesign for the libs-------------
 dylibbundle() {
-	#fix path so dylibbundler is in it and uses the correct install_name_tool
-	if [ "$ARCH" != "x86_64" ]; then
-		export PATH=/opt/x86_64/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
+	#fix path so dylibbundler is in it and uses the build system install_name_tool
+	if [ $(uname -m) = $ARCH ]; then
+		export PATH=/opt/$(uname -m)/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
 	fi
 	resources=$bundle_name/Contents/Resources/lib_
 	dylibbundler -od -b -x $program.$ARCH -d $resources$ARCH/ -p @executable_path/../Resources/lib_$ARCH/ -i /usr/lib/ > /dev/null
@@ -178,6 +178,10 @@ lipo_build() {
 #ctrl_c() {
 #	echo "** Trapped CTRL-C"
 #}
+finish() {
+	rm "$NOTARIZE_APP_LOG" "$NOTARIZE_INFO_LOG" '~/.local/"$TARGET"build1.lockfile'
+}
+trap finish EXIT
 
 mailresult() {
 	#send the logfile to mail address ERRORMAIL - define somewhere
