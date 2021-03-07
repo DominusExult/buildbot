@@ -1,64 +1,50 @@
 #!/bin/zsh
 #functions
 . ./functions.sh
+. ./snapshots/exult.sh
 
 headermain EXULT Release
+bundle_name=Exult_libs.app
+program=exult
 
 cd ~/code/exult
-#/usr/bin/git pull --rebase=true 2> >(teelog >&2) || error Git pull
 
 #configure options for all arches
-CONF_OPT="-q --enable-mt32emu --enable-static-libraries --disable-oggtest --disable-vorbistest --disable-alsa --disable-fluidsynth --disable-timidity-midi --disable-tools"
-
-#x86_64
-header x86_64
-ARCH=x86_64
-SDK=10.14
-DEPLOYMENT=10.9
-flags
-gcc
-CONF_ARGS="--with-macosx-static-lib-path=/opt/$ARCH/lib"
-autogen
-build 2>&1 | teelog ; pipestatus || return
-make distclean > /dev/null
-
-#ppc
-header PPC
-ARCH=ppc
-SDK=10.5
-DEPLOYMENT=10.4
-flags
-gcc oldgcc
-CONF_ARGS="--disable-data --with-macosx-static-lib-path=/opt/$ARCH/lib"
-autogen
-build 2>&1 | teelog -a ; pipestatus || return
-make distclean  > /dev/null
+CONF_OPT="-q --enable-exult-studio-support --enable-mt32emu --enable-fluidsynth --disable-alsa --disable-timidity-midi --disable-tools"
+export EXPACK=/opt/x86_64/bin/expack
+export HEAD2DATA=/opt/x86_64/bin/head2data
 
 #i386
-header i386
-ARCH=i386
-SDK=10.11
-DEPLOYMENT=10.6
-flags
-gcc arch
-CONF_ARGS="--with-macosx-code-signature --with-macosx-static-lib-path=/opt/$ARCH/lib --with-sdl=sdl12"
-autogen
-build 2>&1 | teelog -a ; pipestatus || return
+build_i386
+
+#arm64
+build_arm64
+
+#x86_64
+build_x86_64
 
 #deploy
 deploy
 {
 	#make fat exult binary
-	lipo -create -arch x86_64 exult_x86_64 -arch i386 exult_i386 -arch ppc exult_ppc -output exult || error lipo
+	lipo_build
+
+	# rename the libs bundle to the actual bundle - need to use a lib bundle, since otherwise "make clean" between arches would wipe the bundle
+	mv Exult_libs.app Exult.app
 
 	#bundle
 	make -s bundle || error bundle
+	make -s studiobundle || error studiobundle
 
 	#image, upload
-	export REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"
+	export REVISION=" V1.x"
 	make -s osxdmg || error disk image
+	make -s studiodmg || error studio disk image
+	
+	# notarize it
+	notar
 
-	mv exult-1.6.dmg ~/Snapshots/exult/
+	mv exult-1.x.dmg ~/Snapshots/exult/
 } 2>&1 | teelog -a ; pipestatus || return
 
 #clean

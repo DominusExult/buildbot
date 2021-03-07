@@ -39,7 +39,7 @@ alias deploy='echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tdeployment\t$
 # problems when updating the libs.
 # For building ppc, I'm using the old Xcode 3.x stored in /opt/xcode3.
 # For 32/64bit intel, I'm just using clang that comes with current Xcode.
-# My SDK collection (10.4-11.0) is stored in /opt/SDKs
+# My SDK collection (10.4-11.1) is stored in /opt/SDKs
 
 flags() {
 	SYSARCH=$(uname -m)
@@ -49,7 +49,7 @@ flags() {
 		DEPLOYMENT=11.0
 	elif [ "$ARCH" = "" ] && [ "$SYSARCH" = "x86_64" ]; then
 		ARCH=x86_64
-		SDK=10.14
+		SDK=10.15
 		DEPLOYMENT=10.10
 	fi
 
@@ -81,18 +81,21 @@ gcc() {
 		export PATH=/opt/$ARCH/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
 		export LD="/usr/bin/ld"
 		export RANLIB="~/code/sh/tools/ranlib"
+		export AR="~/code/sh/tools/ar"
 		if [ "$1" = "legacy" ]; then
 			export PATH=/opt/$ARCH/bin/:/opt/xcode3/usr/bin:/opt/xcode3/usr/sbin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
 			export CC='/opt/xcode3/usr/bin/llvm-gcc-4.2 -arch '$ARCH
 			export CXX='/opt/xcode3/usr/bin/llvm-g++-4.2 -arch '$ARCH
 			export LD="/opt/xcode3/usr/bin/ld"
 			export RANLIB="/opt/xcode3/usr/bin/ranlib.old"
+			export AR="/opt/xcode3/usr/bin/ar"
 		elif [ "$1" = "oldgcc" ]; then
 			export PATH=/opt/$ARCH/bin/:/opt/xcode3/usr/bin:/opt/xcode3/usr/sbin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
 			export CC='/opt/xcode3/usr/bin/gcc-4.2 -arch '$ARCH
 			export CXX='/opt/xcode3/usr/bin/g++-4.2 -arch '$ARCH
 			export LD="/opt/xcode3/usr/bin/ld"
 			export RANLIB="/opt/xcode3/usr/bin/ranlib.old"
+			export AR="/opt/xcode3/usr/bin/ar"
 		else
 			export CC='/usr/bin/clang -arch '$ARCH
 			export CXX='/usr/bin/clang++ -arch '$ARCH
@@ -100,6 +103,19 @@ gcc() {
 	else
 		error gcc function
 	fi
+}
+
+#-------------dylibbundle and codesign for the libs-------------
+dylibbundle() {
+	#fix path so dylibbundler is in it and uses the correct install_name_tool
+	if [ "$ARCH" != "x86_64" ]; then
+		export PATH=/opt/x86_64/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
+	fi
+	resources=$bundle_name/Contents/Resources/lib_
+	dylibbundler -od -b -x $program.$ARCH -d $resources$ARCH/ -p @executable_path/../Resources/lib_$ARCH/ -i /usr/lib/ > /dev/null
+}
+codesign_lib() {
+	codesign --options runtime -f -s "Developer ID Application" $resources$ARCH/*.dylib
 }
 
 #-------------command shortcuts-------------
@@ -136,16 +152,16 @@ config() {
 
 stripp() {
 	if [ "$ARCH" != "" ]; then
-		strip $1 -o $1.$ARCH || error $HEADER strip
+		strip $program -o $program.$ARCH || error $HEADER strip
 	else
-		strip $1 -o $1 || error $1 strip
+		strip $program -o $program || error $program strip
 	fi
 }
 
 build() {
 	config
 	makes
-	stripp $target
+	stripp
 }
 
 #-------------Error handling-------------
@@ -166,8 +182,8 @@ mailresult() {
 		# if the name of the result mail sender should be the the same as the logged in $USER, 
 		# use "mail", if you need to use a different sender name use "sendmail"
 		
-		#mail -Es $TARGET" build "$1"" $ERRORMAIL < $LOGFILE
-		(echo "Subject: iMac - "$TARGET" build "$1""; cat $LOGFILE | uuencode $LOGFILE) | sendmail -F "Buildbot" -t $ERRORMAIL
+		mail -Es $TARGET" build "$1"" $ERRORMAIL < $LOGFILE
+		#(echo "Subject: iMac - "$TARGET" build "$1""; cat $LOGFILE | uuencode $LOGFILE) | sendmail -F "Buildbot" -t $ERRORMAIL
 	fi
 }
 
