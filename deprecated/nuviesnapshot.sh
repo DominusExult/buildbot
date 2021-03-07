@@ -5,7 +5,7 @@
 headermain NUVIE
 
 cd ~/code/snapshots/nuvie
-/usr/bin/git pull --rebase=true 2> >(teelog >&2) || error Git pull
+#/usr/bin/git pull --rebase=true 2> >(teelog >&2) || error Git pull
 
 #get revision for labeling the dmg later
 export REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"

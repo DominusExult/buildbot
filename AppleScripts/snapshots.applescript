@@ -3,9 +3,6 @@
 	In Mail.app set a Rule 
 	"if any of the following conditions are met:
 	Any recipient contains exult-cvs-logs@lists.sourceforge.net
-	Any recipient contains pentagram-cvs@lists.sourceforge.net
-	Any recipient contains nuvie-svn@lists.sourceforge.net
-	Any recipient contains xu4-commits@lists.sourceforge.net
 	Any recipient contains dosbox-cvs-log@lists.sourceforge.net
 	Run AppleScript snapshots" 
 	The script will further check the subject for stuff 
@@ -18,21 +15,12 @@ using terms from application "Mail"
 			repeat with eachMessage in theMessages
 				set theSubject to the subject of eachMessage
 				set theBody to the content of eachMessage
-				set xu4 to "xU4"
 				set exult to "Exult"
-				set pent to "Pentagram"
 				set dos to "DOSBox"
-				set nuvie to "Nuvie"
-				if theSubject begins with "[" & xu4 and theSubject contains "trunk/u4" and theSubject does not contain "trunk/u4/src/iOS" then
-					set subj to xu4
-				else if theSubject begins with "[" & exult and theSubject contains "[exult/exult]" then
+				if theSubject begins with "[" & exult and theSubject contains "[exult/exult]" then
 					set subj to exult
-				else if theSubject begins with "[" & pent and theSubject contains pent & "/trunk" then
-					set subj to pent
 				else if theSubject begins with "[Dosbox" then
 					set subj to dos
-				else if theSubject begins with "[" & nuvie and theSubject contains "[nuvie/nuvie]" then
-					set subj to nuvie
 				end if
 			end repeat
 		end tell
