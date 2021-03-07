@@ -121,7 +121,7 @@ codesign_lib() {
 #-------------command shortcuts-------------
 alias autogen='./autogen.sh > /dev/null 2>&1'
 
-alias makes='make clean  > /dev/null ; make -j9 -s AR="~/code/sh/tools/ar" > /dev/null || error $HEADER make'
+alias makes="make clean  > /dev/null ; make -j$(sysctl hw.ncpu | awk '{print $2 +1}') -s AR="~/code/sh/tools/ar" > /dev/null || error $HEADER make"
 
 alias lockfile='rm -f ~/.local/"$TARGET"build1.lockfile'
 
