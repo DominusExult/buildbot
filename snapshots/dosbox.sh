@@ -108,15 +108,12 @@ notar() {
 				# once notarization is complete, run stapler and exit
 				if ! grep -q "Status: in progress" "$NOTARIZE_INFO_LOG"; then
 					xcrun stapler staple $dmg_name.dmg
-					exit $?
 				fi
 			else
 				cat "$NOTARIZE_INFO_LOG" 1>&2
-				exit 1
 			fi
 		done
 	else
 		cat "$NOTARIZE_APP_LOG" 1>&2
-		exit 1
 	fi
 }

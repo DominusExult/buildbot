@@ -108,8 +108,8 @@ gcc() {
 #-------------dylibbundle and codesign for the libs-------------
 dylibbundle() {
 	#fix path so dylibbundler is in it and uses the build system install_name_tool
-	if [ $(uname -m) = $ARCH ]; then
-		export PATH=/opt/$(uname -m)/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
+	if [ $(uname -m) != $ARCH ]; then
+		export PATH="/opt/$(uname -m)/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
 	fi
 	resources=$bundle_name/Contents/Resources/lib_
 	dylibbundler -od -b -x $program.$ARCH -d $resources$ARCH/ -p @executable_path/../Resources/lib_$ARCH/ -i /usr/lib/ > /dev/null
