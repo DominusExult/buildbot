@@ -27,7 +27,7 @@ build_x86_64
 deploy
 {
 	#make fat exult binary
-	lipo_build
+	lipo_build x86_64 arm64 i386
 
 	# rename the libs bundle to the actual bundle - need to use a lib bundle, since otherwise "make clean" between arches would wipe the bundle
 	mv Exult_libs.app Exult.app

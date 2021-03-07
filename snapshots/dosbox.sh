@@ -53,10 +53,6 @@ build_arm64() {
 	codesign_lib
 }
 
-lipo_build() {
-	lipo -create -arch x86_64 $program.x86_64 -arch i386 $program.i386 -arch ppc $program.ppc -output $program  ||  error lipo
-}
-
 bundle() {
 	mkdir -p $bundle_name/Contents/MacOS
 	mkdir -p $bundle_name/Contents/Resources
@@ -64,7 +60,7 @@ bundle() {
 	cp ./src/dosbox $bundle_name/Contents/MacOS/
 	echo "APPL????" > $bundle_name/Contents/PkgInfo
 	cp ~/code/sh/dosbox-patches/Info.plist $bundle_name/Contents/
-	cp ./src/platforms/macosx/dosbox.icns $bundle_name/Contents/Resources/
+	cp ./src/platform/macosx/dosbox.icns $bundle_name/Contents/Resources/
 	cp AUTHORS $bundle_name/Contents/Documents
 	cp COPYING $bundle_name/Contents/Documents
 	cp NEWS $bundle_name/Contents/Documents

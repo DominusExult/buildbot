@@ -54,10 +54,6 @@ build_arm64() {
 	codesign_lib
 }
 
-lipo_build() {
-	lipo -create -arch arm64 $program.arm64 -arch x86_64 $program.x86_64 -arch i386 $program.i386 -output $program  ||  error lipo
-}
-
 notar() {
 	# see https://developer.apple.com/documentation/xcode/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow
 	xcrun altool --notarize-app --primary-bundle-id "info.exult.dmg" -u $AC_USERNAME -p "@keychain:AC_PASSWORD" --file Exult-snapshot.dmg || error notarization
@@ -65,5 +61,5 @@ notar() {
 }
 
 sf_upload() {
-	scp -p -i ~/.ssh/id_rsa ~/Snapshots/exult/Exult-snapshot.dmg ~/Snapshots/exult/ExultStudio-snapshot.dmg $SF_USERNAME,exult@web.sourceforge.net:htdocs/snapshots || error Upload
+	scp -p -i ~/.ssh/id_r sa ~/Snapshots/exult/Exult-snapshot.dmg ~/Snapshots/exult/ExultStudio-snapshot.dmg $SF_USERNAME,exult@web.sourceforge.net:htdocs/snapshots || error Upload
 }

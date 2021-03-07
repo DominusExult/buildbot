@@ -40,7 +40,7 @@ deploy
 {
 
 	# make fat build
-	lipo_build
+	lipo_build x86_64 i386 ppc
 
 	# bundle
 	bundle

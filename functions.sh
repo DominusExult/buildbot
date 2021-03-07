@@ -164,6 +164,14 @@ build() {
 	stripp
 }
 
+lipo_build() {
+	arg1=$1; 
+	for arg; do 
+		lipos="-arch $arg $program.$arg "$lipos; 
+	done
+	lipo -create ${=lipos} -output $program  ||  error lipo
+}
+
 #-------------Error handling-------------
 #trap CTRL-C and do something but it's not working yet when in teelog function
 #trap ctrl_c SIGINT
@@ -244,4 +252,5 @@ echoall() {
 	echo "RANLIB="$RANLIB
 	echo "CONF_OPT="$CONF_OPT 
 	echo "CONF_ARGS="$CONF_ARGS
+	echo "LIPO ARGS="$lipos
 }

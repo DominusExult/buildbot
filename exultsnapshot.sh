@@ -29,7 +29,7 @@ deploy
 {
 
 	#make fat exult binary
-	lipo_build
+	lipo_build x86_64 arm64 i386
 
 	#replace BundleVersion with date
 	sed -i '' "s|1.7.0git<|1.7.0 $(date +"%Y-%m-%d-%H%M")<|" info.plist
