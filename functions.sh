@@ -210,11 +210,12 @@ lipo_build() {
 }
 
 #-------------Error handling-------------
-#trap CTRL-C and do something but it's not working yet when in teelog function
-#trap ctrl_c SIGINT
-#ctrl_c() {
-#	echo "** Trapped CTRL-C"
-#}
+#trap CTRL-C and exit, this way it is removing the lockfile when I ctrl-c a script started by Mail.app
+trap ctrl_c SIGINT
+ctrl_c() {
+	exit
+}
+
 finish() {
 	rm "$NOTARIZE_APP_LOG" "$NOTARIZE_INFO_LOG" '~/.local/"$TARGET"build1.lockfile'
 }
