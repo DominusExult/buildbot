@@ -55,5 +55,5 @@ build_arm64() {
 }
 
 sf_upload() {
-	scp -p -i ~/.ssh/id_r sa ~/Snapshots/exult/Exult-snapshot.dmg ~/Snapshots/exult/ExultStudio-snapshot.dmg $SF_USERNAME,exult@web.sourceforge.net:htdocs/snapshots || error Upload
+	scp -p -i ~/.ssh/id_rsa ~/Snapshots/exult/Exult-snapshot.dmg ~/Snapshots/exult/ExultStudio-snapshot.dmg $SF_USERNAME,exult@web.sourceforge.net:htdocs/snapshots || error Upload
 }
