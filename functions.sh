@@ -118,6 +118,8 @@ codesign_lib() {
 	codesign --options runtime -f -s "Developer ID Application" $resources$ARCH/*.dylib
 }
 
+#-------------Notarization-------------
+# script by rednoah https://github.com/rednoah/notarize-app slightly adapted for my needs
 notar() {
 	BUNDLE_ID="$1"
 	BUNDLE_PKG="$2"
@@ -152,7 +154,6 @@ notar() {
 		return 1
 	fi
 }
-
 
 #-------------command shortcuts-------------
 alias autogen='./autogen.sh > /dev/null 2>&1'
