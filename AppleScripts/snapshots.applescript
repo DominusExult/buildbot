@@ -17,7 +17,7 @@ using terms from application "Mail"
 				set theBody to the content of eachMessage
 				set exult to "Exult"
 				set dos to "DOSBox"
-				if theSubject begins with "[" & exult and theSubject contains "[exult/exult]" then
+				if theSubject begins with "[" & exult and theSubject contains "[exult/exult]" and theBody does not contain "snapshot" then
 					set subj to exult
 				else if theSubject begins with "[Dosbox" then
 					set subj to dos
