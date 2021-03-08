@@ -118,6 +118,42 @@ codesign_lib() {
 	codesign --options runtime -f -s "Developer ID Application" $resources$ARCH/*.dylib
 }
 
+notar() {
+	BUNDLE_ID="$1"
+	BUNDLE_PKG="$2"
+	
+	# temporary files
+	NOTARIZE_APP_LOG=$(mktemp -t notarize-app)
+	NOTARIZE_INFO_LOG=$(mktemp -t notarize-info)
+	
+	# see https://developer.apple.com/documentation/xcode/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow
+	if xcrun altool --notarize-app --primary-bundle-id "$BUNDLE_ID" -u $AC_USERNAME -p "@keychain:AC_PASSWORD" --file "$BUNDLE_PKG" > "$NOTARIZE_APP_LOG" 2>&1; then
+		cat "$NOTARIZE_APP_LOG"
+		RequestUUID=$(awk -F ' = ' '/RequestUUID/ {print $2}' "$NOTARIZE_APP_LOG")
+
+		# check status periodically
+		while sleep 60 && date; do
+			# check notarization status
+			if xcrun altool --notarization-info "$RequestUUID" --username "$AC_USERNAME" --password "@keychain:AC_PASSWORD" > "$NOTARIZE_INFO_LOG" 2>&1; then
+				cat "$NOTARIZE_INFO_LOG"
+
+				# once notarization is complete, run stapler
+				if ! grep -q "Status: in progress" "$NOTARIZE_INFO_LOG"; then
+					xcrun stapler staple "$BUNDLE_PKG"
+					return $?
+				fi
+			else
+				cat "$NOTARIZE_INFO_LOG" 1>&2
+				return 1
+			fi
+		done
+	else
+		cat "$NOTARIZE_APP_LOG" 1>&2
+		return 1
+	fi
+}
+
+
 #-------------command shortcuts-------------
 alias autogen='./autogen.sh > /dev/null 2>&1'
 
@@ -219,9 +255,9 @@ error () {
 }
 
 success () {
-	echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tBUILD COMPLETE\t\t$(tput sgr 0)"
 	lockfile
 	mailresult succeded
+	echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tBUILD COMPLETE\t\t$(tput sgr 0)"
 }
 
 pipestatus() {

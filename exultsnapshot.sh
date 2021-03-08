@@ -27,7 +27,6 @@ build_x86_64
 #deploy
 deploy
 {
-
 	#make fat exult binary
 	lipo_build x86_64 arm64 i386
 
@@ -48,7 +47,9 @@ deploy
 	make -s studiodmg || error studio disk image
 	
 	#Notarize it
-	notar
+	#first Exult then Studio. Args are bundle ID and disk image file name
+	notar info.exult.dmg Exult-snapshot.dmg
+	notar info.exult.studio.dmg ExultStudio-snapshot.dmg
 
 	#file it
 	cp -p Exult-snapshot.dmg ~/Snapshots/exult/"`date +%y-%m-%d-%H%M` Exult$REVISION.dmg"

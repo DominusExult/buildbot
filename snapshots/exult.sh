@@ -54,55 +54,6 @@ build_arm64() {
 	codesign_lib
 }
 
-notar() {
-	NOTARIZE_APP_LOG=$(mktemp -t notarize-app)
-	NOTARIZE_INFO_LOG=$(mktemp -t notarize-info)
-	
-	# see https://developer.apple.com/documentation/xcode/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow
-	if xcrun altool --notarize-app --primary-bundle-id "info.exult.dmg" -u $AC_USERNAME -p "@keychain:AC_PASSWORD" --file Exult-snapshot.dmg > "$NOTARIZE_APP_LOG" 2>&1; then
-		cat "$NOTARIZE_APP_LOG"
-		RequestUUID=$(awk -F ' = ' '/RequestUUID/ {print $2}' "$NOTARIZE_APP_LOG")
-
-		# check status periodically
-		while sleep 60 && date; do
-			# check notarization status
-			if xcrun altool --notarization-info "$RequestUUID" --username "$AC_USERNAME" --password "@keychain:AC_PASSWORD" > "$NOTARIZE_INFO_LOG" 2>&1; then
-				cat "$NOTARIZE_INFO_LOG"
-
-				# once notarization is complete, run stapler
-				if ! grep -q "Status: in progress" "$NOTARIZE_INFO_LOG"; then
-					xcrun stapler staple Exult-snapshot.dmg
-				fi
-			else
-				cat "$NOTARIZE_INFO_LOG" 1>&2
-			fi
-		done
-	else
-		cat "$NOTARIZE_APP_LOG" 1>&2
-	fi
-	if xcrun altool --notarize-app --primary-bundle-id "info.exult.studio.dmg" -u $AC_USERNAME -p "@keychain:AC_PASSWORD" --file ExultStudio-snapshot.dmg > "$NOTARIZE_APP_LOG" 2>&1; then
-		cat "$NOTARIZE_APP_LOG"
-		RequestUUID=$(awk -F ' = ' '/RequestUUID/ {print $2}' "$NOTARIZE_APP_LOG")
-
-		# check status periodically
-		while sleep 60 && date; do
-			# check notarization status
-			if xcrun altool --notarization-info "$RequestUUID" --username "$AC_USERNAME" --password "@keychain:AC_PASSWORD" > "$NOTARIZE_INFO_LOG" 2>&1; then
-				cat "$NOTARIZE_INFO_LOG"
-
-				# once notarization is complete, run stapler
-				if ! grep -q "Status: in progress" "$NOTARIZE_INFO_LOG"; then
-					xcrun stapler staple ExultStudio-snapshot.dmg
-				fi
-			else
-				cat "$NOTARIZE_INFO_LOG" 1>&2
-			fi
-		done
-	else
-		cat "$NOTARIZE_APP_LOG" 1>&2
-	fi
-}
-
 sf_upload() {
 	scp -p -i ~/.ssh/id_r sa ~/Snapshots/exult/Exult-snapshot.dmg ~/Snapshots/exult/ExultStudio-snapshot.dmg $SF_USERNAME,exult@web.sourceforge.net:htdocs/snapshots || error Upload
 }

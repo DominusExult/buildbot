@@ -49,15 +49,15 @@ deploy
 	diskimage
 	
 	# Notarize it
-	notar
+	notar com.dosbox.dmg DOSBox-snapshot.dmg
 		
 	# copy app to applications and file the snapshots
-	cp -R ./$dmg_name/$bundle_name /Applications/
-	cp -p $dmg_name.dmg ~/Snapshots/dosbox/"`date +%y-%m-%d-%H%M` DOSBox$REVISION.dmg"
-	mv -f $dmg_name.dmg ~/Snapshots/dosbox/
+	#cp -R ./$dmg_name/$bundle_name /Applications/
+	#cp -p $dmg_name.dmg ~/Snapshots/dosbox/"`date +%y-%m-%d-%H%M` DOSBox$REVISION.dmg"
+	#mv -f $dmg_name.dmg ~/Snapshots/dosbox/
 
 	# "upload"
-	cp -p ~/Snapshots/dosbox/Dosbox-Snapshot.dmg ~/dropbox/public/dosbox/
+	#cp -p ~/Snapshots/dosbox/Dosbox-Snapshot.dmg ~/dropbox/public/dosbox/
 } 2>&1 | teelog -a ; pipestatus || return
 
 # cleanup
