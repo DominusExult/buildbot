@@ -27,7 +27,7 @@ build_i386() {
 build_x86_64() {
 	header x86_64
 	ARCH=x86_64
-	SDK=10.15
+	SDK=10.14
 	DEPLOYMENT=10.10
 	flags
 	gcc
