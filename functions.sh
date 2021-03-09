@@ -217,7 +217,7 @@ ctrl_c() {
 }
 
 finish() {
-	rm "$NOTARIZE_APP_LOG" "$NOTARIZE_INFO_LOG" '~/.local/"$TARGET"build1.lockfile'
+	rm -f "$NOTARIZE_APP_LOG" "$NOTARIZE_INFO_LOG" ~/.local/"$TARGET"build1.lockfile
 }
 trap finish EXIT
 
