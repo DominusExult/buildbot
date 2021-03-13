@@ -89,3 +89,22 @@ diskimage() {
 						-volname "DOSBox SVN snapshot$REVISION" \
 						$dmg_name.dmg || error disk image
 }
+
+diskimage_compat() {
+	# x86_64
+	cp /opt/x86_64/lib/libSDL-1.2.0compat.dylib ./$dmg_name/$bundle_name/Contents/Resources/lib_x86_64/libSDL-1.2.0.dylib
+	codesign --options runtime -f -s "Developer ID Application" ./$dmg_name/$bundle_name/Contents/Resources/lib_x86_64/libSDL-1.2.0.dylib
+	cp /opt/x86_64/lib/libSDL2-2.0.0.dylib ./$dmg_name/$bundle_name/Contents/Resources/lib_x86_64/
+	codesign --options runtime -f -s "Developer ID Application" ./$dmg_name/$bundle_name/Contents/Resources/lib_x86_64/libSDL2-2.0.0.dylib
+	# i386
+	cp /opt/i386/lib/libSDL-1.2.0compat.dylib ./$dmg_name/$bundle_name/Contents/Resources/lib_i386/libSDL-1.2.0.dylib
+	codesign --options runtime -f -s "Developer ID Application" ./$dmg_name/$bundle_name/Contents/Resources/lib_i386/libSDL-1.2.0.dylib
+	cp /opt/i386/lib/libSDL2-2.0.0.dylib ./$dmg_name/$bundle_name/Contents/Resources/lib_i386/
+	codesign --options runtime -f -s "Developer ID Application" ./$dmg_name/$bundle_name/Contents/Resources/lib_i386/libSDL2-2.0.0.dylib
+	# rename and make dmg
+	mv ./$dmg_name/$bundle_name ./$dmg_name/DOSBoxSDL2compat.app
+	hdiutil create -ov -format UDZO -imagekey zlib-level=9 -fs HFS+ \
+					-srcfolder $dmg_name \
+					-volname "DOSBox SVN SDL2compat snapshot$REVISION" \
+					DOSBox-SDL2compat.dmg || error disk image
+}
