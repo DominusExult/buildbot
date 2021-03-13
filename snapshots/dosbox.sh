@@ -103,7 +103,7 @@ diskimage_compat() {
 	codesign --options runtime -f -s "Developer ID Application" ./$dmg_name/$bundle_name/Contents/Resources/lib_i386/libSDL2-2.0.0.dylib
 	# rename and make dmg
 	mv ./$dmg_name/$bundle_name ./$dmg_name/DOSBoxSDL2compat.app
-	codesign --options runtime --deep --force --sign "Developer ID Application" ./$dmg_name/DOSBoxSDL2compat.app--entitlements ~/code/sh/dosbox-patches/entitlements.plist ||  error codesign compat
+	codesign --options runtime --deep --force --sign "Developer ID Application" ./$dmg_name/DOSBoxSDL2compat.app --entitlements ~/code/sh/dosbox-patches/entitlements.plist ||  error codesign compat
 	hdiutil create -ov -format UDZO -imagekey zlib-level=9 -fs HFS+ \
 					-srcfolder $dmg_name \
 					-volname "DOSBox SVN SDL2compat snapshot$REVISION" \
