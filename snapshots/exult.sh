@@ -23,7 +23,7 @@ build_x86_64() {
 	if [ $(uname -m) = $ARCH ]; then
 		CONF_ARGS="$CONF_ARGS --with-macosx-code-signature"
 	fi
-	#building Exult Studio for 64bit as well
+	#building Exult Studio for x86_64
 	export PREFIX=/opt/gtk3
 	export PATH=$PREFIX/bin/:$PATH
 	export CPPFLAGS='-I'$PREFIX'/include '$CPPFLAGS
@@ -44,10 +44,19 @@ build_arm64() {
 	DEPLOYMENT=11.0
 	flags
 	gcc
+	CONF_ARGS=" --enable-exult-studio --enable-exult-studio-support"
 	#only codesign on the native arch
 	if [ $(uname -m) = $ARCH ]; then
 		CONF_ARGS="$CONF_ARGS --with-macosx-code-signature"
 	fi
+	#building Exult Studio for arm64
+	export PREFIX=/opt/gtk3
+	export PATH=$PREFIX/bin/:$PATH
+	export CPPFLAGS='-I'$PREFIX'/include '$CPPFLAGS
+	export CFLAGS='-I'$PREFIX'/include '$CFLAGS
+	export CXXFLAGS='-I'$PREFIX'/include '$CXXFLAGS
+	export LDFLAGS='-L'$PREFIX'/lib '$LDFLAGS
+	export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 	autogen
 	build 2>&1 | teelog ; pipestatus || return
 	dylibbundle

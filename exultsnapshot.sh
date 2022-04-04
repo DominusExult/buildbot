@@ -6,6 +6,7 @@
 headermain EXULT
 bundle_name=Exult_libs.app
 program=exult
+program2=./mapedit/exult_studio
 
 cd ~/code/snapshots/exult
 /usr/bin/git pull --rebase=true 2> >(teelog >&2) || error Git pull

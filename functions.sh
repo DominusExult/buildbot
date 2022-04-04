@@ -189,7 +189,10 @@ config() {
 
 stripp() {
 	if [ "$ARCH" != "" ]; then
-		strip $program -o $program.$ARCH || error $HEADER strip
+		strip $program -o $program.$ARCH || error $program strip
+		if [ "$program2" != "" ]; then
+			strip $program2 -o $program2.$ARCH || error $program2 strip
+		fi
 	else
 		strip $program -o $program || error $program strip
 	fi
@@ -206,7 +209,13 @@ lipo_build() {
 	for arg; do 
 		lipos="-arch $arg $program.$arg "$lipos; 
 	done
-	lipo -create ${=lipos} -output $program  ||  error lipo
+	lipo -create ${=lipos} -output $program  ||  error $program lipo
+	if [ "$program2" != "" ]; then
+		for arg; do 
+			lipos="-arch $arg $program2.$arg "$lipos; 
+		done
+		lipo -create ${=lipos} -output $program2  ||  error $program2 lipo
+	fi
 }
 
 #-------------Error handling-------------
