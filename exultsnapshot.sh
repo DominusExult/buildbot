@@ -6,7 +6,7 @@
 headermain EXULT
 bundle_name=Exult_libs.app
 program=exult
-program2=./mapedit/exult_studio
+program2=mapedit/exult_studio
 
 cd ~/code/snapshots/exult
 /usr/bin/git pull --rebase=true 2> >(teelog >&2) || error Git pull
@@ -30,6 +30,8 @@ deploy
 {
 	#make fat exult binary
 	lipo_build x86_64 arm64 i386
+	#make fat exult_studio binary
+	lipo_build2 x86_64 arm64 
 
 	#replace BundleVersion with date
 	sed -i '' "s|1.7.0git<|1.7.0 $(date +"%Y-%m-%d-%H%M")<|" info.plist

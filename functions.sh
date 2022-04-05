@@ -62,7 +62,7 @@ flags() {
 		OPTARCH='-arch ppc -m32 -O2 '
 		export PKG_CONFIG=/opt/x86_64/bin/pkg-config
 	elif  [ "$ARCH" = "x86_64" ]; then
-		OPTARCH='-m64 -msse -msse2 -O2 '
+		OPTARCH='-m64 -O2 '
 	elif  [ "$ARCH" = "arm64" ]; then
 		OPTARCH='-O2 '
 	fi
@@ -191,7 +191,8 @@ stripp() {
 	if [ "$ARCH" != "" ]; then
 		strip $program -o $program.$ARCH || error $program strip
 		if [ "$program2" != "" ]; then
-			strip $program2 -o $program2.$ARCH || error $program2 strip
+			# do not strip GTK3 binaries
+			cp $program2 $program2.$ARCH || error $program2 cpstrip
 		fi
 	else
 		strip $program -o $program || error $program strip
@@ -210,12 +211,14 @@ lipo_build() {
 		lipos="-arch $arg $program.$arg "$lipos; 
 	done
 	lipo -create ${=lipos} -output $program  ||  error $program lipo
-	if [ "$program2" != "" ]; then
+}
+
+lipo_build2() {
+	arg1=$1;
 		for arg; do 
-			lipos="-arch $arg $program2.$arg "$lipos; 
+		lipos2="-arch $arg $program2.$arg "$lipos2;
 		done
-		lipo -create ${=lipos} -output $program2  ||  error $program2 lipo
-	fi
+	lipo -create ${=lipos2} -output $program2  ||  error $program2 lipo
 }
 
 #-------------Error handling-------------

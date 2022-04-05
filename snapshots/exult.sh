@@ -2,7 +2,7 @@ build_i386() {
 	header i386
 	ARCH=i386
 	SDK=10.11
-	DEPLOYMENT=10.7
+	DEPLOYMENT=10.9
 	flags
 	gcc
 	autogen
@@ -18,7 +18,7 @@ build_x86_64() {
 	DEPLOYMENT=10.10
 	flags
 	gcc
-	CONF_ARGS=" --enable-exult-studio --enable-exult-studio-support"
+	CONF_ARGS=" --enable-exult-studio"
 	#only codesign on the native arch
 	if [ $(uname -m) = $ARCH ]; then
 		CONF_ARGS="$CONF_ARGS --with-macosx-code-signature"
@@ -40,11 +40,11 @@ build_x86_64() {
 build_arm64() {
 	header arm64
 	ARCH=arm64
-	SDK=11.0
+	SDK=12.3
 	DEPLOYMENT=11.0
 	flags
 	gcc
-	CONF_ARGS=" --enable-exult-studio --enable-exult-studio-support"
+	CONF_ARGS=" --enable-exult-studio"
 	#only codesign on the native arch
 	if [ $(uname -m) = $ARCH ]; then
 		CONF_ARGS="$CONF_ARGS --with-macosx-code-signature"
