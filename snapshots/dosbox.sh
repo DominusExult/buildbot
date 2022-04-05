@@ -4,8 +4,8 @@ build_ppc() {
 	SDK=10.5
 	DEPLOYMENT=10.4
 	flags
-	gcc oldgcc
-	autogen
+	gcc legacy
+	#autogen
 	CONF_ARGS="--prefix=/opt/$ARCH"
 	build 2>&1 | teelog ; pipestatus || return
 }
@@ -13,11 +13,11 @@ build_ppc() {
 build_i386() {
 	header i386
 	ARCH=i386
-	SDK=10.6
-	DEPLOYMENT=10.6
+	SDK=10.11
+	DEPLOYMENT=10.7
 	flags
-	gcc oldgcc
-	autogen
+	gcc
+	#autogen
 	CONF_ARGS="--prefix=/opt/$ARCH"
 	build 2>&1 | teelog ; pipestatus || return
 	dylibbundle
@@ -41,12 +41,12 @@ build_x86_64() {
 build_arm64() {
 	header arm64
 	ARCH=arm64
-	SDK=11.1
+	SDK=12.3
 	DEPLOYMENT=11.0
 	flags
 	gcc
 	#patch -p0 -i ~/code/sh/dosbox-patches/dosbox_wx.patch > /dev/null ||  error wx patch patch
-	autogen
+	#autogen
 	CONF_ARGS="--prefix=/opt/$ARCH"
 	build 2>&1 | teelog ; pipestatus || return
 	dylibbundle
