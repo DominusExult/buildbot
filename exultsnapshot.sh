@@ -19,11 +19,11 @@ export HEAD2DATA=/opt/x86_64/bin/head2data
 #i386
 build_i386
 
-#arm64
-build_arm64
-
 #x86_64
 build_x86_64
+
+#arm64
+build_arm64
 
 #deploy
 deploy

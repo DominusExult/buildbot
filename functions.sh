@@ -45,7 +45,7 @@ flags() {
 	SYSARCH=$(uname -m)
 	if  [ "$ARCH" = "" ] && [ "$SYSARCH" = "arm64" ]; then
 		ARCH=arm64
-		SDK=11.0
+		SDK=12.3
 		DEPLOYMENT=11.0
 	elif [ "$ARCH" = "" ] && [ "$SYSARCH" = "x86_64" ]; then
 		ARCH=x86_64
@@ -112,7 +112,7 @@ dylibbundle() {
 		export PATH="/opt/$(uname -m)/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
 	fi
 	resources=$bundle_name/Contents/Resources/lib_
-	dylibbundler -od -b -x $program.$ARCH -d $resources$ARCH/ -p @executable_path/../Resources/lib_$ARCH/ -i /usr/lib/ > /dev/null
+	dylibbundler -od -ns -b -x $program.$ARCH -d $resources$ARCH/ -p @executable_path/../Resources/lib_$ARCH/ -i /usr/lib/ > /dev/null
 }
 codesign_lib() {
 	codesign --options runtime -f -s "Developer ID Application" $resources$ARCH/*.dylib
@@ -190,10 +190,6 @@ config() {
 stripp() {
 	if [ "$ARCH" != "" ]; then
 		strip $program -o $program.$ARCH || error $program strip
-		if [ "$program2" != "" ]; then
-			# do not strip GTK3 binaries
-			cp $program2 $program2.$ARCH || error $program2 cpstrip
-		fi
 	else
 		strip $program -o $program || error $program strip
 	fi

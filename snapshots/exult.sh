@@ -5,6 +5,7 @@ build_i386() {
 	DEPLOYMENT=10.9
 	flags
 	gcc
+	CONF_ARGS=
 	autogen
 	build 2>&1 | teelog -a ; pipestatus || return
 	dylibbundle
@@ -33,6 +34,7 @@ build_x86_64() {
 	export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 	autogen
 	build 2>&1 | teelog ; pipestatus || return
+	cp $program2 $program2.$ARCH || error $program2 cpstrip
 	dylibbundle
 	codesign_lib
 }
@@ -59,6 +61,7 @@ build_arm64() {
 	export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 	autogen
 	build 2>&1 | teelog ; pipestatus || return
+	cp $program2 $program2.$ARCH || error $program2 cpstrip
 	dylibbundle
 	codesign_lib
 }
