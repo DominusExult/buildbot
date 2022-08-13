@@ -66,7 +66,7 @@ flags() {
 	elif  [ "$ARCH" = "arm64" ]; then
 		OPTARCH='-O2 '
 	fi
-	OPT=' -w -force_cpusubtype_ALL '$OPTARCH
+	OPT=' -w -force_cpusubtype_ALL -headerpad_max_install_names '$OPTARCH
 	SDK=' -isysroot /opt/SDKs/MacOSX'$SDK'.sdk -mmacosx-version-min='$DEPLOYMENT' '
 	export MACOSX_DEPLOYMENT_TARGET=$DEPLOYMENT
 	export CPPFLAGS='-I/opt/'$ARCH'/include'$SDK
