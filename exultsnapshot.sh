@@ -50,9 +50,9 @@ deploy
 	make -s studiodmg || error studio disk image
 	
 	#Notarize it
-	#first Exult then Studio. Args are bundle ID and disk image file name
-	notar info.exult.dmg Exult-snapshot.dmg
-	notar info.exult.studio.dmg ExultStudio-snapshot.dmg
+	#first Exult then Studio. Arg is the disk image file name
+	notar Exult-snapshot.dmg || error notarize Exult
+	notar ExultStudio-snapshot.dmg || error notarize ExultStudio
 
 	#file it
 	cp -p Exult-snapshot.dmg ~/Snapshots/exult/"`date +%y-%m-%d-%H%M` Exult$REVISION.dmg"

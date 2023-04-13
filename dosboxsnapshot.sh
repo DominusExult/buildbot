@@ -49,7 +49,7 @@ deploy
 	diskimage
 	
 	# Notarize it
-	notar com.dosbox.dmg DOSBox-snapshot.dmg
+	notar DOSBox-snapshot.dmg
 		
 	# copy app to applications and file the snapshots
 	cp -R ./$dmg_name/$bundle_name /Applications/
