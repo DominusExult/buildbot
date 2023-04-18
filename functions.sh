@@ -112,7 +112,7 @@ dylibbundle() {
 		export PATH="/opt/$(uname -m)/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
 	fi
 	resources=$bundle_name/Contents/Resources/lib_
-	dylibbundler -od -ns -b -x $program.$ARCH -d $resources$ARCH/ -p @executable_path/../Resources/lib_$ARCH/ -i /usr/lib/ > /dev/null
+	dylibbundler -ns -od -of -b -x $program.$ARCH -d $resources$ARCH/ -p @executable_path/../Resources/lib_$ARCH/ -i /usr/lib/ -s -/opt/$ARCH/lib > /dev/null
 }
 codesign_lib() {
 	codesign --options runtime -f -s "Developer ID Application" $resources$ARCH/*.dylib
