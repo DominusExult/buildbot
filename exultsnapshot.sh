@@ -12,12 +12,9 @@ cd ~/code/snapshots/exult
 /usr/bin/git pull --rebase=true 2> >(teelog >&2) || error Git pull
 
 #configure options for all arches
-CONF_OPT="-q --enable-exult-studio-support --enable-mt32emu --enable-fluidsynth --disable-alsa --disable-timidity-midi --disable-tools"
+CONF_OPT="-q --enable-exult-studio-support --enable-exult-studio --enable-mt32emu --enable-fluidsynth --disable-alsa --disable-timidity-midi --disable-tools"
 export EXPACK=/opt/x86_64/bin/expack
 export HEAD2DATA=/opt/x86_64/bin/head2data
-
-#i386
-build_i386
 
 #x86_64
 build_x86_64
@@ -29,7 +26,7 @@ build_arm64
 deploy
 {
 	#make fat exult binary
-	lipo_build x86_64 arm64 i386
+	lipo_build x86_64 arm64
 	#make fat exult_studio binary
 	lipo_build2 x86_64 arm64 
 
@@ -41,8 +38,9 @@ deploy
 	mv Exult_libs.app Exult.app
 	
 	#bundle
-	make -s bundle || error bundle
-	make -s studiobundle || error studiobundle
+	#let's skip it because the image requires make bundle anyway
+	#make -s bundle || error bundle
+	#make -s studiobundle || error studiobundle
 
 	#image
 	export REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"
