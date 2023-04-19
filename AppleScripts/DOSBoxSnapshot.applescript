@@ -6,8 +6,9 @@
 	Run AppleScript DOSBoxSnapshotsMAIL" 
 *)
 set subj to "DOSBox"
-# For showing the icon in the Dialog, the icon path is set to the DOSBox.app's app folder in /Applications
-set icon_path to ((path to applications folder) as string) & subj & ".app:Contents:Resources:" & subj & ".icns"
+# For showing the icon in the Dialog, the icon path is set to DOSBox' source folder
+# this patch HAS to exist or the script will fail
+set icon_path to ((path to home folder) as string) & "code:snapshots:" & subj & ":src:" & subj & ".ico"
 tell application "Mail"
 	activate
 	(* Now the script asks you whether you want to build a new 

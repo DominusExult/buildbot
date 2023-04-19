@@ -7,9 +7,10 @@
 	Run AppleScript ExultSnapshotsMAIL" 
 *)
 set subj to "EXULT"
-# For showing the icon in the Dialog, the icon path is set to the Exult.app's app folder in /Applications
-set icon_path to (path to applications folder as string) & subj & ".app:Contents:Resources:" & subj & ".icns"
 tell application "Mail"
+# For showing the icon in the Dialog, the icon path is set to Exult's source folder
+# this patch HAS to exist or the script will fail
+set icon_path to ((path to home folder) as string) & "code:snapshots:" & subj & ":macosx:" & subj & ".icns"
 	activate
 	(* Now the script asks you whether you want to build a new 
 	Snapshot of Exult.
