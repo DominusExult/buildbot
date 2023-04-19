@@ -7,10 +7,10 @@
 	Run AppleScript ExultSnapshotsMAIL" 
 *)
 set subj to "EXULT"
-tell application "Mail"
 # For showing the icon in the Dialog, the icon path is set to Exult's source folder
 # this patch HAS to exist or the script will fail
 set icon_path to ((path to home folder) as string) & "code:snapshots:" & subj & ":macosx:" & subj & ".icns"
+tell application "Terminal"
 	activate
 	(* Now the script asks you whether you want to build a new 
 	Snapshot of Exult.
@@ -22,11 +22,8 @@ set icon_path to ((path to home folder) as string) & "code:snapshots:" & subj & 
 Build " & subj & " snapshot?
 " buttons {"Cancel", "OK"} giving up after 110 with icon alias icon_path with title subj
 	if button returned of snapshotdialog = "OK" or gave up of snapshotdialog is true then
-		tell application "Terminal"
-			activate
-			tell application "System Events" to tell process "Terminal" to keystroke "t" using {command down}
-			delay 1
-			do script "cd ~/code/sh; ./" & subj & "snapshot.sh" in selected tab of the front window
-		end tell
+		tell application "System Events" to tell process "Terminal" to keystroke "t" using {command down}
+		delay 1
+		do script "cd ~/code/sh; ./" & subj & "snapshot.sh" in selected tab of the front window
 	end if
 end tell
