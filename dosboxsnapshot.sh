@@ -23,10 +23,10 @@ REVISION=" r$(svnversion)"
 CONF_OPT='-q --disable-sdltest --disable-alsatest'
 
 # i386
-build_i386
+#build_i386
 
 # ppc
-build_ppc
+#build_ppc
 
 # arm64
 # disabled for now as the dynrec core crashes
@@ -40,7 +40,7 @@ deploy
 {
 
 	# make fat build
-	lipo_build x86_64 i386 ppc
+	lipo_build x86_64
 
 	# bundle
 	bundle
@@ -57,19 +57,19 @@ deploy
 	mv -f $dmg_name.dmg ~/Snapshots/dosbox/
 	
 	# create SDL12compat disk image
-	diskimage_compat
+	#diskimage_compat
 	
 	# Notarize it
-	notar com.dosbox.dmg DOSBox-SDL2compat.dmg
+	#notar com.dosbox.dmg DOSBox-SDL2compat.dmg
 	
 	# copy app to applications and file the snapshots
-	cp -R ./$dmg_name/DOSBoxSDL2compat.app /Applications/
-	cp -p DOSBox-SDL2compat.dmg ~/Snapshots/dosbox/"`date +%y-%m-%d-%H%M` DOSBoxSDL2compat$REVISION.dmg"
-	mv -f DOSBox-SDL2compat.dmg ~/Snapshots/dosbox/
+	#cp -R ./$dmg_name/DOSBoxSDL2compat.app /Applications/
+	#cp -p DOSBox-SDL2compat.dmg ~/Snapshots/dosbox/"`date +%y-%m-%d-%H%M` DOSBoxSDL2compat$REVISION.dmg"
+	#mv -f DOSBox-SDL2compat.dmg ~/Snapshots/dosbox/
 	
 	# "upload"
 	cp -p ~/Snapshots/dosbox/Dosbox-Snapshot.dmg ~/dropbox/public/dosbox/
-	cp -p ~/Snapshots/dosbox/DOSBox-SDL2compat.dmg ~/dropbox/public/dosbox/
+	#cp -p ~/Snapshots/dosbox/DOSBox-SDL2compat.dmg ~/dropbox/public/dosbox/
 } 2>&1 | teelog -a ; pipestatus || return
 
 # cleanup

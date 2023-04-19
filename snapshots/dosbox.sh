@@ -14,7 +14,7 @@ build_i386() {
 	header i386
 	ARCH=i386
 	SDK=10.11
-	DEPLOYMENT=10.7
+	DEPLOYMENT=10.9
 	flags
 	gcc
 	#autogen
@@ -27,8 +27,8 @@ build_i386() {
 build_x86_64() {
 	header x86_64
 	ARCH=x86_64
-	SDK=10.15
-	DEPLOYMENT=10.10
+	SDK=13.3
+	DEPLOYMENT=10.11
 	flags
 	gcc
 	autogen
@@ -41,8 +41,8 @@ build_x86_64() {
 build_arm64() {
 	header arm64
 	ARCH=arm64
-	SDK=12.3
-	DEPLOYMENT=11.0
+	SDK=13.3
+	DEPLOYMENT=11.1
 	flags
 	gcc
 	#patch -p0 -i ~/code/sh/dosbox-patches/dosbox_wx.patch > /dev/null ||  error wx patch patch
@@ -82,6 +82,9 @@ diskimage() {
 		SetFile -t ttro -c ttxt ./$dmg_name/ReadMe
 		SetFile -t ttro -c ttxt ./$dmg_name/Thanks
 		mv -f $bundle_name ./$dmg_name/
+		# building sdl12 compat version so the SDL2 dylib needs to be copied in and codesigned
+		cp -X /opt/x86_64/lib/libSDL2-2.0.0.dylib ./$dmg_name/$bundle_name/Contents/Resources/lib_x86_64/
+		codesign --options runtime -f -s "Developer ID Application" ./$dmg_name/$bundle_name/Contents/Resources/lib_x86_64/libSDL2-2.0.0.dylib
 		# codesign to satisfy OS X 10.8+ Gatekeeper
 		codesign --options runtime --deep --force --sign "Developer ID Application" ./$dmg_name/$bundle_name --entitlements ~/code/sh/dosbox-patches/entitlements.plist ||  error codesign
 		hdiutil create -ov -format UDZO -imagekey zlib-level=9 -fs HFS+ \
