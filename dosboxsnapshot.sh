@@ -55,12 +55,9 @@ deploy
 	cp -p $dmg_name.dmg ~/Snapshots/dosbox/"`date +%y-%m-%d-%H%M` DOSBox$REVISION.dmg"
 	mv -f $dmg_name.dmg ~/Snapshots/dosbox/
 
-	# Notarize it
-	notar DOSBox-SDL2compat.dmg
-
 	# "upload"
 	cp -p ~/Snapshots/dosbox/Dosbox-Snapshot.dmg ~/dropbox/public/dosbox/
-	#cp -p ~/Snapshots/dosbox/DOSBox-SDL2compat.dmg ~/dropbox/public/dosbox/
+
 } 2>&1 | teelog -a ; pipestatus || return
 
 # cleanup
