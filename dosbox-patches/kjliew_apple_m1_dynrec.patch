@@ -1,0 +1,100 @@
+diff --git a/src/cpu/core_dynrec.cpp b/src/cpu/core_dynrec.cpp
+index 03809b3f..eb00abe2 100644
+--- a/src/cpu/core_dynrec.cpp
++++ b/src/cpu/core_dynrec.cpp
+@@ -33,6 +33,8 @@
+ #include <winbase.h>
+ #endif
+ 
++#include <libkern/OSCacheControl.h>
++#include <pthread.h>
+ #if (C_HAVE_MPROTECT)
+ #include <sys/mman.h>
+ 
+@@ -206,8 +208,11 @@ Bits CPU_Core_Dynrec_Run(void) {
+ 			// no block found, thus translate the instruction stream
+ 			// unless the instruction is known to be modified
+ 			if (!chandler->invalidation_map || (chandler->invalidation_map[ip_point&4095]<4)) {
++                                dyn_mem_write();
+ 				// translate up to 32 instructions
+ 				block=CreateCacheBlock(chandler,ip_point,32);
++                                dyn_mem_exec();
++                                dyn_cache_invd((void *)block->cache.start, block->cache.size);
+ 			} else {
+ 				// let the normal core handle this instruction to avoid zero-sized blocks
+ 				Bitu old_cycles=CPU_Cycles;
+diff --git a/src/cpu/dyn_cache.h b/src/cpu/dyn_cache.h
+index a4ccdc18..a5bc42b6 100644
+--- a/src/cpu/dyn_cache.h
++++ b/src/cpu/dyn_cache.h
+@@ -604,6 +604,24 @@ static void dyn_run_code(void);
+ #define PAGESIZE_TEMP 4096
+ #endif
+ 
++static inline void dyn_mem_exec(void)
++{
++    if (__builtin_available(macOS 11.0, *))
++        pthread_jit_write_protect_np(true);
++}
++
++static inline void dyn_mem_write(void)
++{
++    if (__builtin_available(macOS 11.0, *))
++        pthread_jit_write_protect_np(false);
++}
++
++static inline void dyn_cache_invd(void *ptr, size_t size)
++{
++    if (__builtin_available(macOS 11.0, *))
++        sys_icache_invalidate(ptr, size);
++}
++
+ static bool cache_initialized = false;
+ 
+ static void cache_init(bool enable) {
+@@ -633,7 +651,14 @@ static void cache_init(bool enable) {
+ 			if (!cache_code_start_ptr)
+ 				cache_code_start_ptr=(Bit8u*)malloc(CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP);
+ #else
+-			cache_code_start_ptr=(Bit8u*)malloc(CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP);
++			cache_code_start_ptr=(Bit8u*)mmap(nullptr, CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP,
++                            PROT_READ | PROT_WRITE | PROT_EXEC,
++                            MAP_PRIVATE | MAP_ANON | MAP_JIT,
++                            -1, 0);
++                        if (cache_code_start_ptr == MAP_FAILED) {
++                            cache_code_start_ptr = nullptr;
++                            E_Exit("Dynamic cache mmap failed");
++                        }
+ #endif
+ 			if(!cache_code_start_ptr) E_Exit("Allocating dynamic cache failed");
+ 
+@@ -643,10 +668,6 @@ static void cache_init(bool enable) {
+ 			cache_code_link_blocks=cache_code;
+ 			cache_code=cache_code+PAGESIZE_TEMP;
+ 
+-#if (C_HAVE_MPROTECT)
+-			if(mprotect(cache_code_link_blocks,CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP,PROT_WRITE|PROT_READ|PROT_EXEC))
+-				LOG_MSG("Setting execute permission on the code cache has failed");
+-#endif
+ 			CacheBlockDynRec * block=cache_getblock();
+ 			cache.block.first=block;
+ 			cache.block.active=block;
+@@ -657,6 +678,7 @@ static void cache_init(bool enable) {
+ 		// setup the default blocks for block linkage returns
+ 		cache.pos=&cache_code_link_blocks[0];
+ 		link_blocks[0].cache.start=cache.pos;
++                dyn_mem_write();
+ 		// link code that returns with a special return code
+ 		dyn_return(BR_Link1,false);
+ 		cache.pos=&cache_code_link_blocks[32];
+@@ -669,6 +691,10 @@ static void cache_init(bool enable) {
+ 		core_dynrec.runcode=(BlockReturn (*)(const Bit8u*))cache.pos;
+ //		link_blocks[1].cache.start=cache.pos;
+ 		dyn_run_code();
++#define SZ_CACHE_CODE (CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP)
++                dyn_mem_exec();
++                dyn_cache_invd(cache_code_start_ptr, SZ_CACHE_CODE);
++#undef SZ_CACHE_CODE
+ #endif
+ 
+ 		cache.free_pages=0;

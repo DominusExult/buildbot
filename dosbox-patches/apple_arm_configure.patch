@@ -1,0 +1,21 @@
+diff --git a/configure.ac b/configure.ac
+index 7bab65ad..da2f83de 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -325,6 +325,16 @@ case "$host_cpu" in
+     c_targetcpu="arm"
+     c_unalignedmemory=yes
+     ;;
++   arm)
++	AC_MSG_CHECKING([windowing system])
++	case "$host_os" in
++		darwin*)
++		AC_DEFINE(C_TARGETCPU,ARMV8LE)
++		AC_MSG_RESULT(ARMv8 Little Endian 64-bit)
++		c_targetcpu="arm"
++		c_unalignedmemory=yes
++		esac
++   ;;
+    *)
+     AC_DEFINE(C_TARGETCPU,UNKNOWN)
+     AC_MSG_RESULT(unknown)

@@ -45,8 +45,9 @@ build_arm64() {
 	DEPLOYMENT=11.1
 	flags
 	gcc
-	#patch -p0 -i ~/code/sh/dosbox-patches/dosbox_wx.patch > /dev/null ||  error wx patch patch
-	#autogen
+	patch -p1 -i ~/code/sh/dosbox-patches/apple_arm_configure.patch > /dev/null ||  error arm configure patch
+	patch -p1 -i ~/code/sh/dosbox-patches/kjliew_apple_m1_dynrec.patch > /dev/null ||  error arm dynrec patch
+	autogen
 	CONF_ARGS="--prefix=/opt/$ARCH"
 	build 2>&1 | teelog ; pipestatus || return
 	dylibbundle
@@ -66,6 +67,12 @@ bundle() {
 	cp NEWS $bundle_name/Contents/Documents
 	cp README $bundle_name/Contents/Documents
 	cp THANKS $bundle_name/Contents/Documents
+	# building sdl12 compat version so the SDL2 dylib needs to be copied in and codesigned
+	# dylibbundle doesn'T copy it as it'S not a dependency of the sdl12-compat dylib
+	cp -X /opt/x86_64/lib/libSDL2-2.0.0.dylib $bundle_name/Contents/Resources/lib_x86_64/
+	codesign --options runtime -f -s "Developer ID Application" $bundle_name/Contents/Resources/lib_x86_64/libSDL2-2.0.0.dylib
+	cp -X /opt/arm64/lib/libSDL2-2.0.0.dylib $bundle_name/Contents/Resources/lib_arm64/
+	codesign --options runtime -f -s "Developer ID Application" $bundle_name/Contents/Resources/lib_arm64/libSDL2-2.0.0.dylib
 }
 
 diskimage() {
@@ -82,9 +89,6 @@ diskimage() {
 		SetFile -t ttro -c ttxt ./$dmg_name/ReadMe
 		SetFile -t ttro -c ttxt ./$dmg_name/Thanks
 		mv -f $bundle_name ./$dmg_name/
-		# building sdl12 compat version so the SDL2 dylib needs to be copied in and codesigned
-		cp -X /opt/x86_64/lib/libSDL2-2.0.0.dylib ./$dmg_name/$bundle_name/Contents/Resources/lib_x86_64/
-		codesign --options runtime -f -s "Developer ID Application" ./$dmg_name/$bundle_name/Contents/Resources/lib_x86_64/libSDL2-2.0.0.dylib
 		# codesign to satisfy OS X 10.8+ Gatekeeper
 		codesign --options runtime --deep --force --sign "Developer ID Application" ./$dmg_name/$bundle_name --entitlements ~/code/sh/dosbox-patches/entitlements.plist ||  error codesign
 		hdiutil create -ov -format UDZO -imagekey zlib-level=9 -fs HFS+ \
