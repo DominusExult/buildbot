@@ -47,6 +47,7 @@ build_arm64() {
 	gcc
 	patch -p1 -i ~/code/sh/dosbox-patches/apple_arm_configure.patch > /dev/null ||  error arm configure patch
 	patch -p1 -i ~/code/sh/dosbox-patches/kjliew_apple_m1_dynrec.patch > /dev/null ||  error arm dynrec patch
+	patch -p1 -i ~/code/sh/dosbox-patches/apple_m1_dpiscale-v2.patch > /dev/null ||  error arm dip patch
 	autogen
 	CONF_ARGS="--prefix=/opt/$ARCH"
 	build 2>&1 | teelog ; pipestatus || return

@@ -1,0 +1,27 @@
+diff -Nru ../orig/dosbox-r4459/src/gui/sdlmain.cpp ./src/gui/sdlmain.cpp
+--- ../orig/dosbox-r4459/src/gui/sdlmain.cpp	2021-07-18 21:42:31.167208200 -0700
++++ ./src/gui/sdlmain.cpp	2021-07-21 02:31:14.243648900 -0700
+@@ -305,6 +306,7 @@
+ 		int xsensitivity;
+ 		int ysensitivity;
+ 	} mouse;
++        int dpiscale;
+ 	SDL_Rect updateRects[1024];
+ 	Bitu num_joysticks;
+ #if defined (WIN32)
+@@ -692,6 +698,15 @@
+ 		sdl.surface=SDL_SetVideoMode_Wrap(sdl.clip.w,sdl.clip.h,bpp,sdl_flags);
+ 	}
+ 
++        if (sdl.desktop.want_type == SCREEN_OPENGL) {
++            int v[4];
++            glGetIntegerv(GL_VIEWPORT, v);
++            sdl.dpiscale = (100.f * v[2]) / sdl.clip.w;
++            float r = (sdl.desktop.fullscreen)? 1.f:(sdl.dpiscale / 100.f);
++            sdl.clip.w = (1.f * sdl.clip.w) * r;
++            sdl.clip.h = (1.f * sdl.clip.h) * r;
++        }
++
+ 	if (sdl.surface && sdl.surface->flags & SDL_FULLSCREEN) {
+ 		sdl.clip.x = (Sint16)((sdl.surface->w-sdl.clip.w)/2);
+ 		sdl.clip.y = (Sint16)((sdl.surface->h-sdl.clip.h)/2);

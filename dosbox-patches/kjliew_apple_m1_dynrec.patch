@@ -24,7 +24,7 @@ index 03809b3f..eb00abe2 100644
  				// let the normal core handle this instruction to avoid zero-sized blocks
  				Bitu old_cycles=CPU_Cycles;
 diff --git a/src/cpu/dyn_cache.h b/src/cpu/dyn_cache.h
-index a4ccdc18..a5bc42b6 100644
+index a4ccdc18..86f06d16 100644
 --- a/src/cpu/dyn_cache.h
 +++ b/src/cpu/dyn_cache.h
 @@ -604,6 +604,24 @@ static void dyn_run_code(void);
@@ -52,7 +52,7 @@ index a4ccdc18..a5bc42b6 100644
  static bool cache_initialized = false;
  
  static void cache_init(bool enable) {
-@@ -633,7 +651,14 @@ static void cache_init(bool enable) {
+@@ -633,7 +651,12 @@ static void cache_init(bool enable) {
  			if (!cache_code_start_ptr)
  				cache_code_start_ptr=(Bit8u*)malloc(CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP);
  #else
@@ -61,14 +61,12 @@ index a4ccdc18..a5bc42b6 100644
 +                            PROT_READ | PROT_WRITE | PROT_EXEC,
 +                            MAP_PRIVATE | MAP_ANON | MAP_JIT,
 +                            -1, 0);
-+                        if (cache_code_start_ptr == MAP_FAILED) {
++                        if (cache_code_start_ptr == MAP_FAILED)
 +                            cache_code_start_ptr = nullptr;
-+                            E_Exit("Dynamic cache mmap failed");
-+                        }
  #endif
  			if(!cache_code_start_ptr) E_Exit("Allocating dynamic cache failed");
  
-@@ -643,10 +668,6 @@ static void cache_init(bool enable) {
+@@ -643,10 +666,6 @@ static void cache_init(bool enable) {
  			cache_code_link_blocks=cache_code;
  			cache_code=cache_code+PAGESIZE_TEMP;
  
@@ -79,7 +77,7 @@ index a4ccdc18..a5bc42b6 100644
  			CacheBlockDynRec * block=cache_getblock();
  			cache.block.first=block;
  			cache.block.active=block;
-@@ -657,6 +678,7 @@ static void cache_init(bool enable) {
+@@ -657,6 +676,7 @@ static void cache_init(bool enable) {
  		// setup the default blocks for block linkage returns
  		cache.pos=&cache_code_link_blocks[0];
  		link_blocks[0].cache.start=cache.pos;
@@ -87,14 +85,13 @@ index a4ccdc18..a5bc42b6 100644
  		// link code that returns with a special return code
  		dyn_return(BR_Link1,false);
  		cache.pos=&cache_code_link_blocks[32];
-@@ -669,6 +691,10 @@ static void cache_init(bool enable) {
- 		core_dynrec.runcode=(BlockReturn (*)(const Bit8u*))cache.pos;
+@@ -670,6 +690,9 @@ static void cache_init(bool enable) {
  //		link_blocks[1].cache.start=cache.pos;
  		dyn_run_code();
-+#define SZ_CACHE_CODE (CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP)
-+                dyn_mem_exec();
-+                dyn_cache_invd(cache_code_start_ptr, SZ_CACHE_CODE);
-+#undef SZ_CACHE_CODE
  #endif
++                dyn_mem_exec();
++                dyn_cache_invd(cache_code_start_ptr,
++                    (CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP));
  
  		cache.free_pages=0;
+ 		cache.last_page=0;
