@@ -1,5 +1,7 @@
 #!/bin/zsh
 # shellcheck shell=bash
+#-------------system arch-------------
+SYSARCH=$(uname -m)
 #-------------headers-------------
 headermain() {
 	if [ "$1" != "" ]; then
@@ -44,7 +46,6 @@ alias deploy='echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tdeployment\t$
 # My SDK collection (10.4-11.1) is stored in /opt/SDKs
 
 flags() {
-	SYSARCH=$(uname -m)
 	if  [ "$ARCH" = "" ] && [ "$SYSARCH" = "arm64" ]; then
 		ARCH=arm64
 		SDK=12.3
@@ -110,8 +111,8 @@ gcc() {
 #-------------dylibbundle and codesign for the libs-------------
 dylibbundle() {
 	#fix path so dylibbundler is in it and uses the build system install_name_tool
-	if [ $(uname -m) != $ARCH ]; then
-		PATH="/opt/$(uname -m)/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
+	if [ $SYSARCH != $ARCH ]; then
+		PATH="/opt/$SYSARCH/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
 		export PATH
 	fi
 	resources=$bundle_name/Contents/Resources/lib_
@@ -213,7 +214,7 @@ mailresult() {
 		# if the name of the result mail sender should be the the same as the logged in $USER, 
 		# use "mail", if you need to use a different sender name use "sendmail"
 		
-		mail -Es $TARGET" build "$1"" $ERRORMAIL < $LOGFILE
+		mail -Es $TARGET" build $1" $ERRORMAIL < $LOGFILE
 		#(echo "Subject: iMac - "$TARGET" build "$1""; cat $LOGFILE | uuencode $LOGFILE) | sendmail -F "Buildbot" -t $ERRORMAIL
 	fi
 }
@@ -247,7 +248,7 @@ pipestatus() {
 	local S=("${pipestatus[@]}")
 	if test -n "$*"
 	then test "$*" = "${S[*]}"
-	else ! [[ "${S[@]}" =~ [^0\ ] ]]
+	else ! [[ "${S[*]}" =~ [^0\ ] ]]
 	fi
 }
 

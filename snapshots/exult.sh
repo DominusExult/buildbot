@@ -6,7 +6,7 @@ build_x86_64() {
 	flags
 	gcc
 	#only codesign on the native arch
-	if [ $(uname -m) = $ARCH ]; then
+	if [ $SYSARCH = $ARCH ]; then
 		CONF_ARGS=" --with-macosx-code-signature"
 	fi
 	#building Exult Studio for x86_64
@@ -32,7 +32,7 @@ build_arm64() {
 	flags
 	gcc
 	#only codesign on the native arch
-	if [ $(uname -m) = $ARCH ]; then
+	if [ $SYSARCH = $ARCH ]; then
 		CONF_ARGS=" --with-macosx-code-signature"
 	fi
 	#building Exult Studio for arm64
