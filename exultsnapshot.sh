@@ -13,8 +13,8 @@ cd $HOME/code/snapshots/exult
 
 #configure options for all arches
 CONF_OPT="-q --enable-exult-studio-support --enable-exult-studio --enable-mt32emu --enable-fluidsynth --disable-alsa --disable-timidity-midi --disable-tools"
-export EXPACK=/opt/x86_64/bin/expack
-export HEAD2DATA=/opt/x86_64/bin/head2data
+export EXPACK=/opt/exult/expack
+export HEAD2DATA=/opt/exult/head2data
 
 #x86_64
 build_x86_64
