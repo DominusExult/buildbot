@@ -8,7 +8,7 @@ bundle_name=Exult_libs.app
 program=exult
 program2=mapedit/exult_studio
 
-cd ~/code/snapshots/exult
+cd $HOME/code/snapshots/exult
 /usr/bin/git pull --rebase=true 2> >(teelog >&2) || error Git pull
 
 #configure options for all arches
@@ -43,7 +43,8 @@ deploy
 	#make -s studiobundle || error studiobundle
 
 	#image
-	export REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"
+	REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"
+	export REVISION
 	make -s osxdmg || error disk image
 	make -s studiodmg || error studio disk image
 	
@@ -53,11 +54,11 @@ deploy
 	notar ExultStudio-snapshot.dmg || error notarize ExultStudio
 
 	#file it
-	cp -p Exult-snapshot.dmg ~/Snapshots/exult/"`date +%y-%m-%d-%H%M` Exult$REVISION.dmg"
-	cp -p ExultStudio-snapshot.dmg ~/Snapshots/exult/"`date +%y-%m-%d-%H%M` ExultStudio$REVISION.dmg"
+	cp -p Exult-snapshot.dmg $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) Exult$REVISION.dmg"
+	cp -p ExultStudio-snapshot.dmg $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) ExultStudio$REVISION.dmg"
 
-	mv Exult-snapshot.dmg ~/Snapshots/exult/
-	mv ExultStudio-snapshot.dmg ~/Snapshots/exult/
+	mv Exult-snapshot.dmg $HOME/Snapshots/exult/
+	mv ExultStudio-snapshot.dmg $HOME/Snapshots/exult/
 	cp -R Exult.app /Applications/
 	cp -R Exult_Studio.app /Applications/
 

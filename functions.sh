@@ -1,16 +1,18 @@
+#!/bin/zsh
+# shellcheck shell=bash
 #-------------headers-------------
 headermain() {
 	if [ "$1" != "" ]; then
 		TARGET=$1
 		#lowercase of $TARGET
-		target="$(echo $TARGET | tr '[A-Z]' '[a-z]')"
+		target="$(echo $TARGET | tr '[:upper:]' '[:lower:]')"
 		#logfile
-		LOGFILE=~/.local/logs/${target}built.txt
+		LOGFILE=$HOME/.local/logs/${target}built.txt
 		#finally the header
 		echo
 		echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tBUILDING $TARGET\t\t$(tput sgr 0)"
 		echo
-		echo `date +%y-%m-%d-%H:%M`
+		date +%y-%m-%d-%H:%M
 		echo "logfile at $LOGFILE"
 		echo
 	else
@@ -80,8 +82,8 @@ gcc() {
 	if [ "$ARCH" != "" ]; then
 		export PATH=/opt/$ARCH/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
 		export LD="/usr/bin/ld"
-		export RANLIB="~/code/sh/tools/ranlib"
-		export AR="~/code/sh/tools/ar"
+		export RANLIB="$HOME/code/sh/tools/ranlib"
+		export AR="$HOME/code/sh/tools/ar"
 		if [ "$1" = "legacy" ]; then
 			export PATH=/opt/$ARCH/bin/:/opt/xcode3/usr/bin:/opt/xcode3/usr/sbin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
 			export CC='/opt/xcode3/usr/bin/llvm-gcc-4.2 -arch '$ARCH
@@ -109,7 +111,8 @@ gcc() {
 dylibbundle() {
 	#fix path so dylibbundler is in it and uses the build system install_name_tool
 	if [ $(uname -m) != $ARCH ]; then
-		export PATH="/opt/$(uname -m)/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
+		PATH="/opt/$(uname -m)/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
+		export PATH
 	fi
 	resources=$bundle_name/Contents/Resources/lib_
 	dylibbundler -ns -od -of -b -x $program.$ARCH -d $resources$ARCH/ -p @executable_path/../Resources/lib_$ARCH/ -i /usr/lib/ -s -/opt/$ARCH/lib > /dev/null
@@ -128,9 +131,9 @@ notar() {
 #-------------command shortcuts-------------
 alias autogen='./autogen.sh > /dev/null 2>&1'
 
-alias makes="make clean  > /dev/null ; make -j$(sysctl hw.ncpu | awk '{print $2 +1}') -s AR="~/code/sh/tools/ar" > /dev/null || error $HEADER make"
+alias makes="make clean  > /dev/null ; make -j$(sysctl hw.ncpu | awk '{print $2}') -s AR="$HOME/code/sh/tools/ar" > /dev/null || error $HEADER make"
 
-alias lockfile='rm -f ~/.local/"$TARGET"build1.lockfile'
+alias lockfile='rm -f $HOME/.local/"$TARGET"build1.lockfile'
 
 config() {
 	if [ "$CONF_OPT" != "" ]; then
@@ -195,7 +198,7 @@ ctrl_c() {
 }
 
 finish() {
-	rm -f "$NOTARIZE_APP_LOG" "$NOTARIZE_INFO_LOG" ~/.local/"$TARGET"build1.lockfile
+	rm -f "$NOTARIZE_APP_LOG" "$NOTARIZE_INFO_LOG" $HOME/.local/"$TARGET"build1.lockfile
 }
 trap finish EXIT
 

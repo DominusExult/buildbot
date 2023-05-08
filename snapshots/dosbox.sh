@@ -45,9 +45,9 @@ build_arm64() {
 	DEPLOYMENT=11.1
 	flags
 	gcc
-	patch -p1 -i ~/code/sh/dosbox-patches/apple_arm_configure.patch > /dev/null ||  error arm configure patch
-	patch -p1 -i ~/code/sh/dosbox-patches/kjliew_apple_m1_dynrec.patch > /dev/null ||  error arm dynrec patch
-	patch -p1 -i ~/code/sh/dosbox-patches/apple_m1_dpiscale-v2.patch > /dev/null ||  error arm dip patch
+	patch -p1 -i $HOME/code/sh/dosbox-patches/apple_arm_configure.patch > /dev/null ||  error arm configure patch
+	patch -p1 -i $HOME/code/sh/dosbox-patches/kjliew_apple_m1_dynrec.patch > /dev/null ||  error arm dynrec patch
+	patch -p1 -i $HOME/code/sh/dosbox-patches/apple_m1_dpiscale-v2.patch > /dev/null ||  error arm dip patch
 	autogen
 	CONF_ARGS="--prefix=/opt/$ARCH"
 	build 2>&1 | teelog ; pipestatus || return
@@ -61,7 +61,7 @@ bundle() {
 	mkdir -p $bundle_name/Contents/Documents
 	cp ./src/dosbox $bundle_name/Contents/MacOS/
 	echo "APPL????" > $bundle_name/Contents/PkgInfo
-	cp ~/code/sh/dosbox-patches/Info.plist $bundle_name/Contents/
+	cp $HOME/code/sh/dosbox-patches/Info.plist $bundle_name/Contents/
 	cp ./src/platform/macosx/dosbox.icns $bundle_name/Contents/Resources/
 	cp AUTHORS $bundle_name/Contents/Documents
 	cp COPYING $bundle_name/Contents/Documents
@@ -91,7 +91,7 @@ diskimage() {
 		SetFile -t ttro -c ttxt ./$dmg_name/Thanks
 		mv -f $bundle_name ./$dmg_name/
 		# codesign to satisfy OS X 10.8+ Gatekeeper
-		codesign --options runtime --deep --force --sign "Developer ID Application" ./$dmg_name/$bundle_name --entitlements ~/code/sh/dosbox-patches/entitlements.plist ||  error codesign
+		codesign --options runtime --deep --force --sign "Developer ID Application" ./$dmg_name/$bundle_name --entitlements $HOME/code/sh/dosbox-patches/entitlements.plist ||  error codesign
 		hdiutil create -ov -format UDZO -imagekey zlib-level=9 -fs HFS+ \
 						-srcfolder $dmg_name \
 						-volname "DOSBox SVN snapshot$REVISION" \

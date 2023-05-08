@@ -7,7 +7,7 @@ headermain DOSBOX
 bundle_name=DOSBoxSVN.app
 program=./src/dosbox
 
-cd ~/Code/snapshots/dosbox
+cd $HOME/Code/snapshots/dosbox
 
 # svn is no longer included in macOS 10.15+ so you need to provide your own and make an alias for that in your environment
 # revert svn as we have probably applied the dynrec patch for ARM
@@ -52,11 +52,11 @@ deploy
 
 	# copy app to applications and file the snapshots
 	cp -R ./$dmg_name/$bundle_name /Applications/
-	cp -p $dmg_name.dmg ~/Snapshots/dosbox/"`date +%y-%m-%d-%H%M` DOSBox$REVISION.dmg"
-	mv -f $dmg_name.dmg ~/Snapshots/dosbox/
+	cp -p $dmg_name.dmg $HOME/Snapshots/dosbox/"$(date +%y-%m-%d-%H%M) DOSBox$REVISION.dmg"
+	mv -f $dmg_name.dmg $HOME/Snapshots/dosbox/
 
 	# "upload"
-	cp -p ~/Snapshots/dosbox/Dosbox-Snapshot.dmg ~/dropbox/public/dosbox/
+	cp -p $HOME/Snapshots/dosbox/Dosbox-Snapshot.dmg $HOME/dropbox/public/dosbox/
 
 } 2>&1 | teelog -a ; pipestatus || return
 
