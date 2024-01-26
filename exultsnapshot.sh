@@ -46,7 +46,7 @@ deploy
 	REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"
 	export REVISION
 	make -s osxdmg || error disk image
-	make -s studiodmg || error studio disk image
+	make -s studiodmg > /dev/null 2>&1 || error studio disk image
 	
 	#Notarize it
 	#first Exult then Studio. Arg is the disk image file name

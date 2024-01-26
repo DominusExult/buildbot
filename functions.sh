@@ -75,7 +75,7 @@ flags() {
 	export CPPFLAGS='-I/opt/'$ARCH'/include'$SDK
 	export CFLAGS='-I/opt/'$ARCH'/include'$SDK' '$OPT
 	export CXXFLAGS='-I/opt/'$ARCH'/include '$SDK' '$OPT
-	export LDFLAGS='-L/opt/'$ARCH'/lib'$SDK' '$OPT
+	export LDFLAGS='-L/opt/'$ARCH'/lib -ld64 '$SDK' '$OPT
 	export LIBTOOLFLAGS=--silent
 }
 
@@ -119,7 +119,7 @@ dylibbundle() {
 	dylibbundler -ns -od -of -b -x $program.$ARCH -d $resources$ARCH/ -p @executable_path/../Resources/lib_$ARCH/ -i /usr/lib/ -s -/opt/$ARCH/lib > /dev/null
 }
 codesign_lib() {
-	codesign --options runtime -f -s "Developer ID Application" $resources$ARCH/*.dylib
+	codesign --options runtime -f -s "Developer ID Application" $resources$ARCH/*.dylib > /dev/null 2>&1
 }
 
 #-------------Notarization-------------
@@ -131,6 +131,7 @@ notar() {
 
 #-------------command shortcuts-------------
 alias autogen='./autogen.sh > /dev/null 2>&1'
+alias autore='autoreconf'
 
 alias makes="make clean  > /dev/null ; make -j$(sysctl hw.ncpu | awk '{print $2}') -s AR="$HOME/code/sh/tools/ar" > /dev/null || error $HEADER make"
 
