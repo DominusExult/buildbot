@@ -48,12 +48,12 @@ alias deploy='echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tdeployment\t$
 flags() {
 	if  [ "$ARCH" = "" ] && [ "$SYSARCH" = "arm64" ]; then
 		ARCH=arm64
-		SDK=12.3
-		DEPLOYMENT=11.0
+		SDK=14.2
+		DEPLOYMENT=11.1
 	elif [ "$ARCH" = "" ] && [ "$SYSARCH" = "x86_64" ]; then
 		ARCH=x86_64
-		SDK=10.15
-		DEPLOYMENT=10.10
+		SDK=14.2
+		DEPLOYMENT=10.11
 	fi
 
 	export PKG_CONFIG_PATH=/opt/$ARCH/lib/pkgconfig
@@ -131,7 +131,7 @@ notar() {
 
 #-------------command shortcuts-------------
 alias autogen='./autogen.sh > /dev/null 2>&1'
-alias autore='autoreconf'
+alias autore='autoreconf -i'
 
 alias makes="make clean  > /dev/null ; make -j$(sysctl hw.ncpu | awk '{print $2}') -s AR="$HOME/code/sh/tools/ar" > /dev/null || error $HEADER make"
 
