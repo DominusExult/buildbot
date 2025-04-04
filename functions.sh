@@ -48,12 +48,12 @@ alias deploy='echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tdeployment\t$
 flags() {
 	if  [ "$ARCH" = "" ] && [ "$SYSARCH" = "arm64" ]; then
 		ARCH=arm64
-		SDK=14.2
+		SDK=14.5
 		DEPLOYMENT=11.1
 	elif [ "$ARCH" = "" ] && [ "$SYSARCH" = "x86_64" ]; then
 		ARCH=x86_64
-		SDK=14.2
-		DEPLOYMENT=10.11
+		SDK=14.5
+		DEPLOYMENT=10.12
 	fi
 
 	export PKG_CONFIG_PATH=/opt/$ARCH/lib/pkgconfig
@@ -69,7 +69,7 @@ flags() {
 	elif  [ "$ARCH" = "arm64" ]; then
 		OPTARCH='-O2 '
 	fi
-	OPT=' -w -force_cpusubtype_ALL -headerpad_max_install_names '$OPTARCH
+	OPT=' -w -headerpad_max_install_names '$OPTARCH
 	SDK=' -isysroot /opt/SDKs/MacOSX'$SDK'.sdk -mmacosx-version-min='$DEPLOYMENT' '
 	export MACOSX_DEPLOYMENT_TARGET=$DEPLOYMENT
 	export CPPFLAGS='-I/opt/'$ARCH'/include'$SDK
@@ -112,7 +112,7 @@ gcc() {
 dylibbundle() {
 	#fix path so dylibbundler is in it and uses the build system install_name_tool
 	if [ $SYSARCH != $ARCH ]; then
-		PATH="/opt/$SYSARCH/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
+		PATH="/opt/$SYSARCH/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/gtk3/bin"
 		export PATH
 	fi
 	resources=$bundle_name/Contents/Resources/lib_

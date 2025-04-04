@@ -1,8 +1,8 @@
 build_x86_64() {
 	header x86_64
 	ARCH=x86_64
-	SDK=14.2
-	DEPLOYMENT=10.11
+	SDK=14.5
+	DEPLOYMENT=10.12
 	flags
 	gcc
 	#only codesign on the native arch
@@ -27,7 +27,7 @@ build_x86_64() {
 build_arm64() {
 	header arm64
 	ARCH=arm64
-	SDK=14.2
+	SDK=14.5
 	DEPLOYMENT=11.1
 	flags
 	gcc
