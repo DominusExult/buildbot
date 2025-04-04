@@ -4,15 +4,45 @@
 . ./snapshots/exult.sh
 
 headermain EXULT
+SOURCE_PATH=$HOME/code/snapshots/exult
 bundle_name=Exult_libs.app
 program=exult
 program2=mapedit/exult_studio
+main_binaries=($program $program2)
+tools_binaries=(./tools/cmanip \
+				./tools/expack \
+				./tools/ipack \
+				./tools/mklink \
+				./tools/rip \
+				./tools/shp2pcx \
+				./tools/splitshp \
+				./tools/textpack \
+				./tools/u7voice2syx \
+				./tools/wuc \
+				./tools/compiler/ucc \
+				./tools/ucxt/head2data \
+				./tools/ucxt/src/ucxt \
+				./tools/mockup/mockup \
+				./tools/smooth/smooth \
+				./tools/aseprite_plugin/exult_shp)
 
-cd $HOME/code/snapshots/exult
-/usr/bin/git pull --rebase=true 2> >(teelog >&2) || error Git pull
+rm -R $HOME/code/build/exult
+mkdir -p $HOME/code/build/exult
+cd $HOME/code/build/exult
+/usr/bin/git -C "$SOURCE_PATH" pull --rebase=true  2> >(teelog >&2) || error Git pull
 
 #configure options for all arches
-CONF_OPT="-q --enable-exult-studio-support --enable-exult-studio --enable-mt32emu --enable-fluidsynth --disable-alsa --disable-timidity-midi --disable-tools"
+CONF_OPT="-q \
+			--enable-exult-studio-support \
+			--enable-exult-studio \
+			--enable-mt32emu \
+			--enable-fluidsynth \
+			--enable-tools \
+			--enable-compiler \
+			--enable-aseprite-plugin \
+			--disable-alsa --disable-all-hq-scalers --disable-nxbr \
+			--disable-timidity-midi"
+
 export EXPACK=/opt/exult/expack
 export HEAD2DATA=/opt/exult/head2data
 
@@ -25,13 +55,14 @@ build_arm64
 #deploy
 deploy
 {
-	#make fat exult binary
-	lipo_build x86_64 arm64
-	#make fat exult_studio binary
-	lipo_build2 x86_64 arm64 
+	#make fat exult/studio binaries
+	lipo_build x86_64 arm64 -f "${main_binaries[@]}"
+	#make fat tools
+	lipo_build x86_64 arm64 -f "${main_binaries[@]}"
 
 	#replace BundleVersion with date
-	sed -i '' "s|1.11.0git<|1.11.0 $(date +"%Y-%m-%d-%H%M")<|" info.plist
+	echo "Current PATH = "$PWD
+	sed -i '' "s|1.11.0git<|1.11.0 $(date +"%Y-%m-%d-%H%M")<|" ./info.plist
 	sed -i '' "s|1.11.0git<|1.11.0 $(date +"%Y-%m-%d-%H%M")<|" ./macosx/exult_studio_info.plist
 
 	# rename the libs bundle to the actual bundle - need to use a lib bundle, since otherwise "make clean" between arches would wipe the bundle
@@ -43,22 +74,30 @@ deploy
 	#make -s studiobundle || error studiobundle
 
 	#image
-	REVISION=" $(/usr/bin/git log -1 --pretty=format:%h)"
+	REVISION=" $(/usr/bin/git -C $SOURCE_PATH log -1 --pretty=format:%h)"
 	export REVISION
 	make -s osxdmg || error disk image
 	make -s studiodmg > /dev/null 2>&1 || error studio disk image
+	make -s tools_package || error tools_package
+	make -s aseprite_package || error aseprite_package
 	
 	#Notarize it
 	#first Exult then Studio. Arg is the disk image file name
 	notar Exult-snapshot.dmg || error notarize Exult
 	notar ExultStudio-snapshot.dmg || error notarize ExultStudio
+	notar exult_tools_macOS.zip || error notarize tools
+	notar exult_shp_macos.aseprite-extension || error notarize aseprite
 
 	#file it
 	cp -p Exult-snapshot.dmg $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) Exult$REVISION.dmg"
 	cp -p ExultStudio-snapshot.dmg $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) ExultStudio$REVISION.dmg"
+	cp -p exult_tools_macOS.zip $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) exult_tools$REVISION.zip"
+	cp -p exult_shp_macos.aseprite-extension $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) exult_shp$REVISION.aseprite-extension"
 
 	mv Exult-snapshot.dmg $HOME/Snapshots/exult/
 	mv ExultStudio-snapshot.dmg $HOME/Snapshots/exult/
+	mv exult_tools_macOS.zip $HOME/Snapshots/exult/
+	mv exult_shp_macos.aseprite-extension $HOME/Snapshots/exult/
 	cp -R Exult.app /Applications/
 	cp -R Exult_Studio.app /Applications/
 

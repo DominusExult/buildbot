@@ -43,7 +43,7 @@ alias deploy='echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tdeployment\t$
 # problems when updating the libs.
 # For building ppc, I'm using the old Xcode 3.x stored in /opt/xcode3.
 # For 32/64bit intel, I'm just using clang that comes with current Xcode.
-# My SDK collection (10.4-11.1) is stored in /opt/SDKs
+# My SDK collection (10.4-15.4) is stored in /opt/SDKs
 
 flags() {
 	if  [ "$ARCH" = "" ] && [ "$SYSARCH" = "arm64" ]; then
@@ -57,7 +57,7 @@ flags() {
 	fi
 
 	export PKG_CONFIG_PATH=/opt/$ARCH/lib/pkgconfig
-	export PKG_CONFIG=/opt/$SYSARCH/bin/pkg-config
+	#export PKG_CONFIG=/opt/$SYSARCH/bin/pkg-config
 
 	if [ "$ARCH" = "i386" ]; then
 		OPTARCH='-arch i386 -m32 -msse -msse2 -O2 '
@@ -126,18 +126,26 @@ codesign_lib() {
 notar() {
 	BUNDLE_PKG="$1"
 	xcrun notarytool submit --wait --keychain-profile 'notarize' "$BUNDLE_PKG"
-	xcrun stapler staple "$BUNDLE_PKG"
+	# Only run stapler staple for .dmg or .pkg files
+	if [[ "$BUNDLE_PKG" == *.dmg || "$BUNDLE_PKG" == *.pkg ]]; then
+		xcrun stapler staple "$BUNDLE_PKG"
+	fi
 }
 
 #-------------command shortcuts-------------
 alias autogen='./autogen.sh > /dev/null 2>&1'
-alias autore='autoreconf -i'
+alias autore='autoreconf -i "$SOURCE_PATH"'
 
 alias makes="make clean  > /dev/null ; make -j$(sysctl hw.ncpu | awk '{print $2}') -s AR="$HOME/code/sh/tools/ar" > /dev/null || error $HEADER make"
 
 alias lockfile='rm -f $HOME/.local/"$TARGET"build1.lockfile'
 
+# "$SOURCE_PATH" is the path to where ./configure is found
 config() {
+	if [ "$SOURCE_PATH" = "" ]; then
+		$SOURCE_PATH="."
+	fi
+	
 	if [ "$CONF_OPT" != "" ]; then
 		c1=$CONF_OPT
 	fi
@@ -146,50 +154,95 @@ config() {
 	fi
 		
 	if [ "$ARCH" = "ppc" ]; then
-		./configure --host=powerpc-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
+		"$SOURCE_PATH"/configure --host=powerpc-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
 
 	elif [ "$ARCH" = "i386" ]; then
-		./configure --host=i386-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
+		"$SOURCE_PATH"/configure --host=i386-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
 
 	elif [[ "$ARCH" = "arm64" ]] && [[ "$SYSARCH" != "arm64" ]]; then
-		./configure --host=arm-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
+		"$SOURCE_PATH"/configure --host=arm-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
 
 	elif [[ "$ARCH" = "x86_64" ]] && [[ "$SYSARCH" != "x86_64" ]]; then
-		./configure --host=x86_64-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
+		"$SOURCE_PATH"/configure --host=x86_64-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
 
 	else [ "$?" != "0" ]
-		./configure ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
+		"$SOURCE_PATH"/configure ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
 	fi
 }
 
 stripp() {
 	if [ "$ARCH" != "" ]; then
-		strip $program -o $program.$ARCH || error $program strip
+		strip $1 -o $1.$ARCH || error $arg stripp
 	else
-		strip $program -o $program || error $program strip
+		strip $1 -o $1 || error $arg stripp
 	fi
+}
+
+stripp_all() {
+	local binaries=("$@")
+
+	if [ ${#binaries[@]} -eq 0 ]; then
+		error "No binaries provided" stripp_all
+		return 1
+	fi
+
+	for binary in "${binaries[@]}"; do
+		stripp "$binary"
+	done
 }
 
 build() {
 	config
 	makes
-	stripp
+	#stripp $program
 }
+
 
 lipo_build() {
-	arg1=$1; 
-	for arg; do 
-		lipos="-arch $arg $program.$arg "$lipos; 
-	done
-	lipo -create ${=lipos} -output $program  ||  error $program lipo
-}
+	local lipos=""
+	local file_array=()
+	local process_files=0
+	local archs=()
 
-lipo_build2() {
-	arg1=$1;
-		for arg; do 
-		lipos2="-arch $arg $program2.$arg "$lipos2;
+	# First pass: collect architectures and files
+	for arg; do
+		if [[ $process_files -eq 1 ]]; then
+			# Add to file array
+			file_array+=("$arg")
+			continue
+		fi
+
+		if [[ "$arg" == "-f" ]]; then
+			# Next arguments will be files to process
+			process_files=1
+			continue
+		elif [[ "$arg" != "-f" ]]; then
+			# Collect architectures
+			archs+=("$arg")
+		fi
+	done
+
+	# If we have files to process, run lipo for each file
+	if [[ ${#file_array[@]} -gt 0 ]]; then
+		for file in "${file_array[@]}"; do
+			echo "Processing $file with architectures: ${(j: :)archs}"
+			# Build architecture arguments for this file
+			lipos=""
+			for arch in "${archs[@]}"; do
+				lipos="$lipos -arch $arch $file.$arch"
+			done
+			# Run lipo command
+			if [ -n "$lipos" ]; then
+				lipo -create ${=lipos} -output $file || error $file lipo
+			else
+				error "No architecture inputs provided for $file" lipo_build
+			fi
 		done
-	lipo -create ${=lipos2} -output $program2  ||  error $program2 lipo
+		return 0
+	else
+		error "No files provided" lipo_build
+		return 1
+	fi
 }
 
 #-------------Error handling-------------
