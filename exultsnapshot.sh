@@ -31,8 +31,8 @@ deploy
 	lipo_build2 x86_64 arm64 
 
 	#replace BundleVersion with date
-	sed -i '' "s|1.9.0git<|1.9.0 $(date +"%Y-%m-%d-%H%M")<|" info.plist
-	sed -i '' "s|1.9.0git<|1.9.0 $(date +"%Y-%m-%d-%H%M")<|" ./macosx/exult_studio_info.plist
+	sed -i '' "s|1.11.0git<|1.11.0 $(date +"%Y-%m-%d-%H%M")<|" info.plist
+	sed -i '' "s|1.11.0git<|1.11.0 $(date +"%Y-%m-%d-%H%M")<|" ./macosx/exult_studio_info.plist
 
 	# rename the libs bundle to the actual bundle - need to use a lib bundle, since otherwise "make clean" between arches would wipe the bundle
 	mv Exult_libs.app Exult.app
