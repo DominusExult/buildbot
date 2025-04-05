@@ -119,7 +119,7 @@ dylibbundle() {
 	dylibbundler -ns -od -of -b -x $program.$ARCH -d $resources$ARCH/ -p @executable_path/../Resources/lib_$ARCH/ -i /usr/lib/ -s -/opt/$ARCH/lib > /dev/null
 }
 codesign_lib() {
-	codesign --options runtime -f -s "Developer ID Application" $resources$ARCH/*.dylib > /dev/null 2>&1
+	codesign --options runtime -f -s "Developer ID Application" $1/*.dylib > /dev/null 2>&1
 }
 
 #-------------Notarization-------------
@@ -170,24 +170,73 @@ config() {
 	fi
 }
 
+# stripp file -p optional new path to strip to
+# with -p the just the filename is extracted in case there's a path prefix
 stripp() {
-	if [ "$ARCH" != "" ]; then
-		strip $1 -o $1.$ARCH || error $arg stripp
+	local input_file=$1
+	local output_path=""
+	local output_file=""
+
+	# Check if there's a path prefix specified with -p
+	if [ "$2" = "-p" ] && [ -n "$3" ]; then
+		output_path="$3"
+		# Get just the filename without the directory path
+		local basename=$(basename "$input_file")
+
+		if [ "$ARCH" != "" ]; then
+			output_file="${output_path}${basename}.$ARCH"
+		else
+			output_file="${output_path}${basename}"
+		fi
 	else
-		strip $1 -o $1 || error $arg stripp
+		# Use original behavior
+		if [ "$ARCH" != "" ]; then
+			output_file="$input_file.$ARCH"
+		else
+			output_file="$input_file"
+		fi
 	fi
+
+	# Run strip command
+	strip "$input_file" -o "$output_file" || error "$input_file" stripp
 }
 
+# stripp_all ${#binaries[@]} (set with binaries=(file 1 file 2 ...))
+# -p optional new path to strip to
+# with -p the just the filename is extracted in case there's a path prefix
 stripp_all() {
-	local binaries=("$@")
+	local binaries=()
+	local path_prefix=""
+	local path_prefix_flag=0
+
+	# Process arguments to separate binaries and path prefix
+	for arg; do
+		if [ "$path_prefix_flag" -eq 1 ]; then
+			path_prefix="$arg"
+			path_prefix_flag=0
+			continue
+		fi
+
+		if [ "$arg" = "-p" ]; then
+			path_prefix_flag=1
+			continue
+		else
+			binaries+=("$arg")
+		fi
+	done
 
 	if [ ${#binaries[@]} -eq 0 ]; then
 		error "No binaries provided" stripp_all
 		return 1
 	fi
 
+	# Process each binary with the optional path prefix
 	for binary in "${binaries[@]}"; do
-		stripp "$binary"
+		if [ -n "$path_prefix" ]; then
+			stripp "$binary" -p "$path_prefix"
+		else
+			stripp "$binary"
+		fi
 	done
 }
 

@@ -23,8 +23,26 @@ tools_binaries=(./tools/cmanip \
 				./tools/ucxt/head2data \
 				./tools/ucxt/src/ucxt \
 				./tools/mockup/mockup \
-				./tools/smooth/smooth \
-				./tools/aseprite_plugin/exult_shp)
+				./tools/smooth/smooth)
+tools_package=(./toolspack/cmanip \
+				./toolspack/expack \
+				./toolspack/ipack \
+				./toolspack/mklink \
+				./toolspack/rip \
+				./toolspack/shp2pcx \
+				./toolspack/splitshp \
+				./toolspack/textpack \
+				./toolspack/u7voice2syx \
+				./toolspack/wuc \
+				./toolspack/ucc \
+				./toolspack/head2data \
+				./toolspack/ucxt \
+				./toolspack/mockup \
+				./toolspack/smooth \
+				./toolspack/libsmooth_randomize.so \
+				./toolspack/libsmooth_smooth.so \
+				./toolspack/libsmooth_stream.so)
+aseprite_binary=./tools/aseprite_plugin/exult_shp
 
 rm -R $HOME/code/build/exult
 mkdir -p $HOME/code/build/exult
@@ -57,8 +75,10 @@ deploy
 {
 	#make fat exult/studio binaries
 	lipo_build x86_64 arm64 -f "${main_binaries[@]}"
+	#make fat aseprite plugin
+	lipo_build x86_64 arm64 -f "${aseprite_binary[@]}"
 	#make fat tools
-	lipo_build x86_64 arm64 -f "${main_binaries[@]}"
+	lipo_build x86_64 arm64 -f "${tools_package[@]}"
 
 	#replace BundleVersion with date
 	echo "Current PATH = "$PWD
@@ -73,14 +93,14 @@ deploy
 	#make -s bundle || error bundle
 	#make -s studiobundle || error studiobundle
 
-	#image
+	#package
 	REVISION=" $(/usr/bin/git -C $SOURCE_PATH log -1 --pretty=format:%h)"
 	export REVISION
 	make -s osxdmg || error disk image
 	make -s studiodmg > /dev/null 2>&1 || error studio disk image
-	make -s tools_package || error tools_package
 	make -s aseprite_package || error aseprite_package
-	
+	tools_package
+
 	#Notarize it
 	#first Exult then Studio. Arg is the disk image file name
 	notar Exult-snapshot.dmg || error notarize Exult
