@@ -97,9 +97,9 @@ deploy
 	REVISION=" $(/usr/bin/git -C $SOURCE_PATH log -1 --pretty=format:%h)"
 	export REVISION
 	make -s osxdmg || error disk image
-	make -s studiodmg > /dev/null 2>&1 || error studio disk image
-	make -s aseprite_package || error aseprite_package
-	tools_package
+	make -s studiodmg &> /dev/null || error studio disk image
+	make -s aseprite_package  &> /dev/null || error aseprite_package
+	tools_package &> /dev/null || error tools_package
 
 	#Notarize it
 	#first Exult then Studio. Arg is the disk image file name
