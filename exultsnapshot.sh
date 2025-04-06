@@ -103,26 +103,27 @@ deploy
 
 	#Notarize it
 	#first Exult then Studio. Arg is the disk image file name
-	notar Exult-snapshot.dmg || error notarize Exult
-	notar ExultStudio-snapshot.dmg || error notarize ExultStudio
-	notar exult_tools_macOS.zip || error notarize tools
-	notar exult_shp_macos.aseprite-extension || error notarize aseprite
+	echo "Notarizing ..."
+	notar Exult-snapshot.dmg &> /dev/null || error notarize Exult
+	notar ExultStudio-snapshot.dmg &> /dev/null || error notarize ExultStudio
+	notar exult_tools_macOS.zip &> /dev/null || error notarize tools
+	notar exult_shp_macos.aseprite-extension &> /dev/null || error notarize aseprite
 
 	#file it
-	cp -p Exult-snapshot.dmg $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) Exult$REVISION.dmg"
-	cp -p ExultStudio-snapshot.dmg $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) ExultStudio$REVISION.dmg"
-	cp -p exult_tools_macOS.zip $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) exult_tools$REVISION.zip"
-	cp -p exult_shp_macos.aseprite-extension $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) exult_shp$REVISION.aseprite-extension"
+	#cp -p Exult-snapshot.dmg $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) Exult$REVISION.dmg"
+	#cp -p ExultStudio-snapshot.dmg $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) ExultStudio$REVISION.dmg"
+	#cp -p exult_tools_macOS.zip $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) exult_tools$REVISION.zip"
+	#cp -p exult_shp_macos.aseprite-extension $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) exult_shp$REVISION.aseprite-extension"
 
-	mv Exult-snapshot.dmg $HOME/Snapshots/exult/
-	mv ExultStudio-snapshot.dmg $HOME/Snapshots/exult/
-	mv exult_tools_macOS.zip $HOME/Snapshots/exult/
-	mv exult_shp_macos.aseprite-extension $HOME/Snapshots/exult/
-	cp -R Exult.app /Applications/
-	cp -R Exult_Studio.app /Applications/
+	#mv Exult-snapshot.dmg $HOME/Snapshots/exult/
+	#mv ExultStudio-snapshot.dmg $HOME/Snapshots/exult/
+	#mv exult_tools_macOS.zip $HOME/Snapshots/exult/
+	#mv exult_shp_macos.aseprite-extension $HOME/Snapshots/exult/
+	#cp -R Exult.app /Applications/
+	#cp -R Exult_Studio.app /Applications/
 
 	#upload
-	sf_upload
+	#sf_upload
 } 2>&1 | teelog -a ; pipestatus || return
 
 #clean

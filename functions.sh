@@ -274,7 +274,7 @@ lipo_build() {
 	# If we have files to process, run lipo for each file
 	if [[ ${#file_array[@]} -gt 0 ]]; then
 		for file in "${file_array[@]}"; do
-			echo "Processing $file with architectures: ${(j: :)archs}"
+			#echo "Processing $file with architectures: ${(j: :)archs}"
 			# Build architecture arguments for this file
 			lipos=""
 			for arch in "${archs[@]}"; do
