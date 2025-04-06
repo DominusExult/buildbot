@@ -87,7 +87,7 @@ flags() {
 	export CPPFLAGS='-I/opt/'$ARCH'/include'$SDK
 	export CFLAGS='-I/opt/'$ARCH'/include'$SDK' '$OPT
 	export CXXFLAGS='-I/opt/'$ARCH'/include '$SDK' '$OPT
-	export LDFLAGS='-L/opt/'$ARCH'/lib -ld64 '$SDK' '$OPT
+	export LDFLAGS='-L/opt/'$ARCH'/lib '$SDK' '$OPT
 	export LIBTOOLFLAGS=--silent
 }
 
