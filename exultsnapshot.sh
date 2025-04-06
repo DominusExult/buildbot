@@ -110,21 +110,21 @@ deploy
 
 	#file it
 	step "Filing ..."
-	#cp -p Exult-snapshot.dmg $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) Exult$REVISION.dmg"
-	#cp -p ExultStudio-snapshot.dmg $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) ExultStudio$REVISION.dmg"
-	#cp -p exult_tools_macOS.zip $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) exult_tools$REVISION.zip"
-	#cp -p exult_shp_macos.aseprite-extension $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) exult_shp$REVISION.aseprite-extension"
+	cp -p Exult-snapshot.dmg $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) Exult$REVISION.dmg"
+	cp -p ExultStudio-snapshot.dmg $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) ExultStudio$REVISION.dmg"
+	cp -p exult_tools_macOS.zip $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) exult_tools$REVISION.zip"
+	cp -p exult_shp_macos.aseprite-extension $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) exult_shp$REVISION.aseprite-extension"
 
-	#mv Exult-snapshot.dmg $HOME/Snapshots/exult/
-	#mv ExultStudio-snapshot.dmg $HOME/Snapshots/exult/
-	#mv exult_tools_macOS.zip $HOME/Snapshots/exult/
-	#mv exult_shp_macos.aseprite-extension $HOME/Snapshots/exult/
-	#cp -R Exult.app /Applications/
-	#cp -R Exult_Studio.app /Applications/
+	mv Exult-snapshot.dmg $HOME/Snapshots/exult/
+	mv ExultStudio-snapshot.dmg $HOME/Snapshots/exult/
+	mv exult_tools_macOS.zip $HOME/Snapshots/exult/
+	mv exult_shp_macos.aseprite-extension $HOME/Snapshots/exult/
+	cp -R Exult.app /Applications/
+	cp -R Exult_Studio.app /Applications/
 
 	#upload
 	step "Uploading ..."
-	#sf_upload
+	sf_upload
 } 2>&1 | teelog -a ; pipestatus || return
 
 #clean
