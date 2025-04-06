@@ -58,7 +58,7 @@ CONF_OPT="-q \
 			--enable-tools \
 			--enable-compiler \
 			--enable-aseprite-plugin \
-			--disable-alsa --disable-all-hq-scalers --disable-nxbr \
+			--disable-alsa \
 			--disable-timidity-midi"
 
 export EXPACK=/opt/exult/expack
