@@ -34,6 +34,18 @@ header() {
 	
 }
 
+step() {
+	if [ "$1" != "" ]; then
+		STEPS=$1
+		echo
+		echo -e "$(tput setab 2)$(tput bold)$(tput setaf 4)\t$STEPS\t$(tput sgr 0)"
+		echo
+	else
+		error header function
+	fi
+	
+}
+
 alias deploy='echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tdeployment\t$(tput sgr 0)"'
 
 #-------------compiler & flags-------------

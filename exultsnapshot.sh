@@ -73,6 +73,7 @@ build_arm64
 #deploy
 deploy
 {
+	step "Lipo ..."
 	#make fat exult/studio binaries
 	lipo_build x86_64 arm64 -f "${main_binaries[@]}"
 	#make fat aseprite plugin
@@ -81,7 +82,6 @@ deploy
 	lipo_build x86_64 arm64 -f "${tools_package[@]}"
 
 	#replace BundleVersion with date
-	echo "Current PATH = "$PWD
 	sed -i '' "s|1.11.0git<|1.11.0 $(date +"%Y-%m-%d-%H%M")<|" ./info.plist
 	sed -i '' "s|1.11.0git<|1.11.0 $(date +"%Y-%m-%d-%H%M")<|" ./macosx/exult_studio_info.plist
 
@@ -94,22 +94,24 @@ deploy
 	#make -s studiobundle || error studiobundle
 
 	#package
+	step "Packaging ..."
 	REVISION=" $(/usr/bin/git -C $SOURCE_PATH log -1 --pretty=format:%h)"
 	export REVISION
-	make -s osxdmg || error disk image
+	make -s osxdmg &> /dev/null || error disk image
 	make -s studiodmg &> /dev/null || error studio disk image
-	make -s aseprite_package  &> /dev/null || error aseprite_package
+	make -s aseprite_package &> /dev/null || error aseprite_package
 	tools_package &> /dev/null || error tools_package
 
 	#Notarize it
 	#first Exult then Studio. Arg is the disk image file name
-	echo "Notarizing ..."
+	step "Notarizing ..."
 	notar Exult-snapshot.dmg &> /dev/null || error notarize Exult
 	notar ExultStudio-snapshot.dmg &> /dev/null || error notarize ExultStudio
 	notar exult_tools_macOS.zip &> /dev/null || error notarize tools
 	notar exult_shp_macos.aseprite-extension &> /dev/null || error notarize aseprite
 
 	#file it
+	step "Filing ..."
 	#cp -p Exult-snapshot.dmg $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) Exult$REVISION.dmg"
 	#cp -p ExultStudio-snapshot.dmg $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) ExultStudio$REVISION.dmg"
 	#cp -p exult_tools_macOS.zip $HOME/Snapshots/exult/"$(date +%y-%m-%d-%H%M) exult_tools$REVISION.zip"
@@ -123,6 +125,7 @@ deploy
 	#cp -R Exult_Studio.app /Applications/
 
 	#upload
+	step "Uploading ..."
 	#sf_upload
 } 2>&1 | teelog -a ; pipestatus || return
 
