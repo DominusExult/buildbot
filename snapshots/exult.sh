@@ -23,8 +23,7 @@ tools_build() {
 	  -x ./toolspack/libsmooth_smooth.so.$ARCH \
 	  -x ./toolspack/libsmooth_stream.so.$ARCH \
 	  -d ./toolspack/lib_$ARCH \
-	  -p @executable_path/lib_$ARCH/ \
-	   > /dev/null
+	  -p @executable_path/lib_$ARCH/
 	codesign_lib ./toolspack/lib_$ARCH
 }
 
@@ -40,9 +39,9 @@ common_build() {
 	build 2>&1 | teelog ; pipestatus || return
 	stripp_all "${main_binaries[@]}"
 	stripp_all "${aseprite_binary[@]}"
-	dylibbundle
-	codesign_lib $resources$ARCH
-	tools_build
+	dylibbundle &> /dev/null
+	codesign_lib $resources$ARCH &> /dev/null
+	tools_build &> /dev/null
 }
 
 build_x86_64() {
