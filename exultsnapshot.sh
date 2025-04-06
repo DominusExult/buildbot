@@ -51,15 +51,13 @@ cd $HOME/code/build/exult
 
 #configure options for all arches
 CONF_OPT="-q \
-			--enable-exult-studio-support \
 			--enable-exult-studio \
-			--enable-mt32emu \
-			--enable-fluidsynth \
 			--enable-tools \
 			--enable-compiler \
 			--enable-aseprite-plugin \
 			--disable-alsa \
-			--disable-timidity-midi"
+			--disable-timidity-midi \
+			--disable-sdl-parachute"
 
 export EXPACK=/opt/exult/expack
 export HEAD2DATA=/opt/exult/head2data
