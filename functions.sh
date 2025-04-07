@@ -128,10 +128,20 @@ dylibbundle() {
 		export PATH
 	fi
 	resources=$bundle_name/Contents/Resources/lib_
-	dylibbundler -ns -od -of -b -x $program.$ARCH -d $resources$ARCH/ -p @executable_path/../Resources/lib_$ARCH/ -i /usr/lib/ -s -/opt/$ARCH/lib > /dev/null
+	dylibbundler -b -ns -od -of -cd \
+				-x $program.$ARCH \
+				-d $resources$ARCH/ \
+				-p @executable_path/../Resources/lib_$ARCH/ \
+				-i /usr/lib/ \
+				-s -/opt/$ARCH/lib \
+				&> /dev/null
 }
 codesign_lib() {
-	codesign --options runtime -f -s "Developer ID Application" $1/*.dylib > /dev/null 2>&1
+	codesign \
+			--options runtime \
+			-f -s "Developer ID Application" \
+			$1/*.dylib \
+			&> /dev/null
 }
 
 #-------------Notarization-------------

@@ -14,7 +14,7 @@ tools_build() {
 	cp ./tools/smooth/libsmooth_randomize.so ./toolspack/libsmooth_randomize.so.$ARCH
 	cp ./tools/smooth/libsmooth_smooth.so ./toolspack/libsmooth_smooth.so.$ARCH
 	cp ./tools/smooth/libsmooth_stream.so ./toolspack/libsmooth_stream.so.$ARCH
-	dylibbundler -cd -b -of -od \
+	dylibbundler -b -ns -od -of -cd \
 	  -x ./toolspack/ipack.$ARCH \
 	  -x ./toolspack/ucxt.$ARCH \
 	  -x ./toolspack/mockup.$ARCH \
