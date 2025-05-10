@@ -37,7 +37,10 @@ common_build() {
 	gtk3
 	autore
 	build 2>&1 | teelog ; pipestatus || return
-	stripp_all "${main_binaries[@]}"
+	stripp_all $program
+	rm $program2.$ARCH
+	# do not strip exult_studio - it will no longer work correctly
+	cp $program2 $program2.$ARCH || error $program2 cpstrip
 	stripp_all "${aseprite_binary[@]}"
 	dylibbundle &> /dev/null
 	codesign_lib $resources$ARCH &> /dev/null
