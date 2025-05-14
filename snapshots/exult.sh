@@ -51,7 +51,7 @@ build_x86_64() {
 	header x86_64
 	ARCH=x86_64
 	SDK=14.5
-	DEPLOYMENT=10.12
+	DEPLOYMENT=10.15
 	common_build
 }
 
