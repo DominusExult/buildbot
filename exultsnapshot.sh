@@ -56,8 +56,7 @@ CONF_OPT="-q \
 			--enable-compiler \
 			--enable-aseprite-plugin \
 			--disable-alsa \
-			--disable-timidity-midi \
-			--disable-sdl-parachute"
+			--disable-timidity-midi"
 
 export EXPACK=/opt/exult/expack
 export HEAD2DATA=/opt/exult/head2data
