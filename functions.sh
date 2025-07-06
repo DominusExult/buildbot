@@ -1,15 +1,19 @@
 #!/bin/zsh
 # shellcheck shell=bash
 #-------------system arch-------------
-SYSARCH=$(uname -m)
+SYSARCH="$(uname -m)"
 #-------------headers-------------
 headermain() {
 	if [ "$1" != "" ]; then
-		TARGET=$1
+		TARGET="$1"
 		#lowercase of $TARGET
 		target="$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')"
 		#logfile
-		LOGFILE=$HOME/.local/logs/${target}built.txt
+		LOGFILE="$HOME/.local/logs/${target}built.txt"
+		
+		# Ensure log directory exists
+		mkdir -p "$HOME/.local/logs" || error "Failed to create log directory"
+		
 		#finally the header
 		echo
 		echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tBUILDING $TARGET\t\t$(tput sgr 0)"
@@ -18,32 +22,30 @@ headermain() {
 		echo "logfile at $LOGFILE"
 		echo
 	else
-		error headermain function
+		error "headermain function requires argument"
 	fi
 }
 
 header() {
 	if [ "$1" != "" ]; then
-		HEADER=$1
+		HEADER="$1"
 		echo
 		echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tbuilding for $HEADER\t$(tput sgr 0)"
 		echo
 	else
-		error header function
+		error "header function requires argument"
 	fi
-	
 }
 
 step() {
 	if [ "$1" != "" ]; then
-		STEPS=$1
+		STEPS="$1"
 		echo
 		echo -e "$(tput setab 2)$(tput bold)$(tput setaf 4)\t$STEPS\t$(tput sgr 0)"
 		echo
 	else
-		error step function
+		error "step function requires argument"
 	fi
-	
 }
 
 alias deploy='echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tdeployment\t$(tput sgr 0)"'
@@ -57,62 +59,81 @@ alias deploy='echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tdeployment\t$
 # My SDK collection (10.4-15.5) is stored in /opt/SDKs
 
 flags() {
-	if  [ "$ARCH" = "" ] && [ "$SYSARCH" = "arm64" ]; then
-		ARCH=arm64
-		SDK=14.5
-		DEPLOYMENT=11.1
-	elif [ "$ARCH" = "" ] && [ "$SYSARCH" = "x86_64" ]; then
-		ARCH=x86_64
-		SDK=14.5
-		DEPLOYMENT=10.15
+	# Set default architecture if not specified
+	if [ -z "$ARCH" ]; then
+		if [ "$SYSARCH" = "arm64" ]; then
+			ARCH="arm64"
+			SDK="14.5"
+			DEPLOYMENT="11.1"
+		elif [ "$SYSARCH" = "x86_64" ]; then
+			ARCH="x86_64"
+			SDK="14.5"
+			DEPLOYMENT="10.15"
+		else
+			error "Unsupported system architecture: $SYSARCH"
+		fi
 	fi
 
-	export PKG_CONFIG_PATH=/opt/$ARCH/lib/pkgconfig
-	#export PKG_CONFIG=/opt/$SYSARCH/bin/pkg-config
+	export PKG_CONFIG_PATH="/opt/$ARCH/lib/pkgconfig"
 
-	if  [ "$ARCH" = "x86_64" ]; then
+	# Set architecture-specific optimization flags
+	if [ "$ARCH" = "x86_64" ]; then
 		OPTARCH='-m64 -O2 '
-	elif  [ "$ARCH" = "arm64" ]; then
+	elif [ "$ARCH" = "arm64" ]; then
 		OPTARCH='-O2 '
+	else
+		error "Unsupported target architecture: $ARCH"
 	fi
-	OPT=' -w -headerpad_max_install_names '$OPTARCH
-	SDK=' -isysroot /opt/SDKs/MacOSX'$SDK'.sdk -mmacosx-version-min='$DEPLOYMENT' '
-	export MACOSX_DEPLOYMENT_TARGET=$DEPLOYMENT
-	export CPPFLAGS='-I/opt/'$ARCH'/include'$SDK
-	export CFLAGS='-I/opt/'$ARCH'/include'$SDK' '$OPT
-	export CXXFLAGS='-I/opt/'$ARCH'/include '$SDK' '$OPT
-	export LDFLAGS='-L/opt/'$ARCH'/lib '$SDK' '$OPT
-	export LIBTOOLFLAGS=--silent
+	
+	OPT=" -w -headerpad_max_install_names $OPTARCH"
+	SDK=" -isysroot /opt/SDKs/MacOSX$SDK.sdk -mmacosx-version-min=$DEPLOYMENT "
+	export MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT"
+	export CPPFLAGS="-I/opt/$ARCH/include$SDK"
+	export CFLAGS="-I/opt/$ARCH/include$SDK $OPT"
+	export CXXFLAGS="-I/opt/$ARCH/include $SDK $OPT"
+	export LDFLAGS="-L/opt/$ARCH/lib $SDK $OPT"
+	export LIBTOOLFLAGS="--silent"
 }
 
 gcc() {
-	if [ "$ARCH" != "" ]; then
-		export PATH=/opt/$ARCH/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
-		export LD="/usr/bin/ld"
-		export RANLIB="$HOME/code/sh/tools/ranlib"
-		export AR="$HOME/code/sh/tools/ar"
-		export CC='/usr/bin/clang -arch '$ARCH
-		export CXX='/usr/bin/clang++ -arch '$ARCH
-	else
-		error gcc function
+	if [ -z "$ARCH" ]; then
+		error "ARCH variable not set - call flags() first"
 	fi
+	
+	export PATH="/opt/$ARCH/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
+	export LD="/usr/bin/ld"
+	export RANLIB="$HOME/code/sh/tools/ranlib"
+	export AR="$HOME/code/sh/tools/ar"
+	export CC="/usr/bin/clang -arch $ARCH"
+	export CXX="/usr/bin/clang++ -arch $ARCH"
 }
 
 #-------------dylibbundle and codesign for the libs-------------
 dylibbundle() {
-	#fix path so dylibbundler is in it and uses the build system install_name_tool
+	# Validate required variables
+	[ -n "$ARCH" ] || error "ARCH not set for dylibbundle"
+	[ -n "$SYSARCH" ] || error "SYSARCH not set for dylibbundle"
+	[ -n "$bundle_name" ] || error "bundle_name not set for dylibbundle"
+	[ -n "$program" ] || error "program not set for dylibbundle"
+	
+	# Fix path so dylibbundler is in it and uses the build system install_name_tool
 	if [ "$SYSARCH" != "$ARCH" ]; then
 		PATH="/opt/$SYSARCH/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/gtk3/bin"
 		export PATH
 	fi
-	resources=$bundle_name/Contents/Resources/lib_
+	
+	resources="$bundle_name/Contents/Resources/lib_"
+	
+	# Validate that the program binary exists
+	[ -f "$program.$ARCH" ] || error "Program binary not found: $program.$ARCH"
+	
 	dylibbundler -b -ns -od -of -cd \
-				-x "$program"."$ARCH" \
-				-d "$resources""$ARCH"/ \
-				-p @executable_path/../Resources/lib_"$ARCH"/ \
+				-x "$program.$ARCH" \
+				-d "$resources$ARCH/" \
+				-p "@executable_path/../Resources/lib_$ARCH/" \
 				-i /usr/lib/ \
-				-s -/opt/"$ARCH"/lib \
-				&> /dev/null
+				-s "/opt/$ARCH/lib" \
+				&> /dev/null || error "dylibbundler failed for $program.$ARCH"
 }
 codesign_lib() {
 	codesign \
@@ -137,25 +158,43 @@ alias autogen='./autogen.sh > /dev/null 2>&1'
 alias autore='autoreconf -i "$SOURCE_PATH"'
 
 makes() {
+	# Clean previous build
 	make clean > /dev/null
-	make -j"$(sysctl hw.ncpu | awk '{print $2}')" -s AR="$HOME/code/sh/tools/ar" > /dev/null || error "$HEADER" make
+	
+	# Get CPU count more reliably
+	local ncpu
+	if command -v nproc >/dev/null 2>&1; then
+		ncpu=$(nproc)
+	else
+		ncpu=$(sysctl -n hw.ncpu)
+	fi
+	
+	# Validate AR tool exists
+	[ -f "$HOME/code/sh/tools/ar" ] || error "AR tool not found: $HOME/code/sh/tools/ar"
+	
+	# Run make with parallel jobs
+	make -j"$ncpu" -s AR="$HOME/code/sh/tools/ar" > /dev/null || error "$HEADER make failed"
 }
 
 alias lockfile='rm -f $HOME/.local/"$TARGET"build1.lockfile'
 
-# "$SOURCE_PATH" is the path to where ./configure is found
 config() {
-	if [ "$SOURCE_PATH" = "" ]; then
+	# Set default source path if not specified
+	if [ -z "$SOURCE_PATH" ]; then
 		SOURCE_PATH="."
 	fi
 	
-	if [ "$CONF_OPT" != "" ]; then
-		c1=$CONF_OPT
-	fi
-	if [ "$CONF_ARGS" != "" ]; then
-		c2=$CONF_ARGS
-	fi
-		
+	# Validate that configure script exists
+	[ -f "$SOURCE_PATH/configure" ] || error "configure script not found in $SOURCE_PATH"
+
+	#if [ "$CONF_OPT" != "" ]; then
+	#	c1=$CONF_OPT
+	#fi
+	#if [ "$CONF_ARGS" != "" ]; then
+	#	c2=$CONF_ARGS
+	#fi
+
+	# Configure based on architecture and cross-compilation needs
 	if [[ "$ARCH" = "arm64" ]] && [[ "$SYSARCH" != "arm64" ]]; then
 		# shellcheck disable=SC2086
 		"$SOURCE_PATH"/configure --host=arm-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error "$ARCH" configure
@@ -249,10 +288,14 @@ build() {
 
 
 lipo_build() {
-	local lipos=""
 	local file_array=()
 	local process_files=0
 	local archs=()
+
+	# Validate arguments
+	if [ $# -eq 0 ]; then
+		error "No arguments provided to lipo_build"
+	fi
 
 	# First pass: collect architectures and files
 	for arg; do
@@ -272,33 +315,39 @@ lipo_build() {
 		fi
 	done
 
-	# If we have files to process, run lipo for each file
-	if [[ ${#file_array[@]} -gt 0 ]]; then
-		for file in "${file_array[@]}"; do
-			#echo "DEBUG: Processing $file with architectures: ${archs[*]}"
-			# Build architecture arguments for this file
-			lipos=""
-			for arch in "${archs[@]}"; do
-				local arch_file="$file.$arch"
-				if [[ -f "$arch_file" ]]; then
-					lipos="$lipos -arch $arch $arch_file"
-				else
-					echo "DEBUG: WARNING: Architecture file does not exist: $arch_file"
-				fi
-			done
-			# Run lipo command
-			if [ -n "$lipos" ]; then
-				# shellcheck disable=SC2086
-				lipo -create ${=lipos} -output "$file" || error "$file" lipo
+	# Validate we have both architectures and files
+	if [[ ${#archs[@]} -eq 0 ]]; then
+		error "No architectures specified for lipo_build"
+	fi
+	
+	if [[ ${#file_array[@]} -eq 0 ]]; then
+		error "No files specified for lipo_build (use -f flag)"
+	fi
+
+	# Process each file
+	for file in "${file_array[@]}"; do
+		local lipos=""
+		local found_files=0
+		
+		# Build architecture arguments for this file
+		for arch in "${archs[@]}"; do
+			local arch_file="$file.$arch"
+			if [[ -f "$arch_file" ]]; then
+				lipos="$lipos -arch $arch $arch_file"
+				found_files=$((found_files + 1))
 			else
-				error "No architecture inputs provided for $file" lipo_build
+				echo "WARNING: Architecture file does not exist: $arch_file"
 			fi
 		done
-		return 0
-	else
-		error "No files provided" lipo_build
-		return 1
-	fi
+		
+		# Run lipo command if we have at least one input file
+		if [[ $found_files -gt 0 ]]; then
+			# shellcheck disable=SC2086
+			lipo -create ${=lipos} -output "$file" || error "lipo failed for $file"
+		else
+			error "No valid architecture inputs found for $file"
+		fi
+	done
 }
 
 #-------------Error handling-------------
