@@ -12,11 +12,11 @@ if [ ! -d "$HOME/code/snapshots/exult" ]; then
 	error "Source directory $HOME/code/snapshots/exult does not exist"
 fi
 
-export SOURCE_PATH=$HOME/code/snapshots/exult
-export bundle_name=Exult_libs.app
-export program=exult
-export program2=mapedit/exult_studio
-export main_binaries=($program $program2)
+export SOURCE_PATH="$HOME/code/snapshots/exult"
+export bundle_name="Exult_libs.app"
+export program="exult"
+export program2="mapedit/exult_studio"
+export main_binaries=("$program" "$program2")
 export tools_binaries=(./tools/cmanip \
 				./tools/expack \
 				./tools/ipack \
@@ -50,7 +50,7 @@ tools_package=(./toolspack/cmanip \
 				./toolspack/libsmooth_randomize.so \
 				./toolspack/libsmooth_smooth.so \
 				./toolspack/libsmooth_stream.so)
-aseprite_binary=./tools/aseprite_plugin/exult_shp
+aseprite_binary="./tools/aseprite_plugin/exult_shp"
 
 export BUILDDIR="$HOME/code/build/exult"
 rm -rf "$BUILDDIR"
@@ -92,11 +92,15 @@ deploy
 
 	#replace BundleVersion with date
 	BUILD_DATE="$(date +"%Y-%m-%d-%H%M")"
-	/usr/bin/sed -i '' "s|1.11.0git<|1.11.0 ${BUILD_DATE}<|" ./info.plist  || error sed exult info
-	/usr/bin/sed -i '' "s|1.11.0git<|1.11.0 ${BUILD_DATE}<|"  ./macosx/exult_studio_info.plist || error sed exult studio info
+	[ -f "./info.plist" ] && /usr/bin/sed -i '' "s|1.11.0git<|1.11.0 ${BUILD_DATE}<|" ./info.plist || error "sed exult info: info.plist not found"
+	[ -f "./macosx/exult_studio_info.plist" ] && /usr/bin/sed -i '' "s|1.11.0git<|1.11.0 ${BUILD_DATE}<|" ./macosx/exult_studio_info.plist || error "sed exult studio info: exult_studio_info.plist not found"
 
 	# rename the libs bundle to the actual bundle - need to use a lib bundle, since otherwise "make clean" between arches would wipe the bundle
-	mv Exult_libs.app Exult.app || error "Failed to rename bundle"
+	if [ -d "Exult_libs.app" ]; then
+		mv Exult_libs.app Exult.app || error "Failed to rename bundle from Exult_libs.app to Exult.app"
+	else
+		error "Exult_libs.app bundle not found - build may have failed"
+	fi
 	
 	#bundle
 	#let's skip it because the image requires make bundle anyway
@@ -107,32 +111,52 @@ deploy
 	step "Packaging ..."
 	REVISION=" $(/usr/bin/git -C "$SOURCE_PATH" log -1 --pretty=format:%h)"
 	export REVISION
-	make -s osxdmg &> /dev/null || error disk image
-	make -s studiodmg &> /dev/null || error studio disk image
-	make -s aseprite_package &> /dev/null || error aseprite_package
-	tools_package &> /dev/null || error tools_package
+
+	# Test codesigning capability before packaging
+	if [ "$BUILDBOT" = "1" ]; then
+		if ! security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
+			error "Developer ID Application certificate not found in keychain"
+		fi
+	fi
+	
+	make -s osxdmg &> /dev/null || error "Failed to create disk image"
+	make -s studiodmg &> /dev/null || error "Failed to create studio disk image"
+	make -s aseprite_package &> /dev/null || error "Failed to create aseprite package"
+	tools_package &> /dev/null || error "Failed to create tools package"
 
 	# Only run notarization, filing, and upload if BUILDBOT=1
 	if [ "$BUILDBOT" = "1" ]; then
 		#Notarize it
 		#first Exult then Studio. Arg is the disk image file name
 		step "Notarizing ..."
-		notar Exult-snapshot.dmg &> /dev/null || error notarize Exult
-		notar ExultStudio-snapshot.dmg &> /dev/null || error notarize ExultStudio
-		notar exult_tools_macOS.zip &> /dev/null || error notarize tools
-		notar exult_shp_macos.aseprite-extension &> /dev/null || error notarize aseprite
+		
+		# Validate files exist before notarization
+		[ -f "Exult-snapshot.dmg" ] || error "Exult-snapshot.dmg not found for notarization"
+		[ -f "ExultStudio-snapshot.dmg" ] || error "ExultStudio-snapshot.dmg not found for notarization"
+		[ -f "exult_tools_macOS.zip" ] || error "exult_tools_macOS.zip not found for notarization"
+		[ -f "exult_shp_macos.aseprite-extension" ] || error "exult_shp_macos.aseprite-extension not found for notarization"
+		
+		notar Exult-snapshot.dmg &> /dev/null || error "Failed to notarize Exult"
+		notar ExultStudio-snapshot.dmg &> /dev/null || error "Failed to notarize ExultStudio"
+		notar exult_tools_macOS.zip &> /dev/null || error "Failed to notarize tools"
+		notar exult_shp_macos.aseprite-extension &> /dev/null || error "Failed to notarize aseprite plugin"
 
 		#file it
 		step "Filing ..."
-		cp -p Exult-snapshot.dmg "$HOME/Snapshots/exult/$(date +%y-%m-%d-%H%M) Exult$REVISION.dmg"
-		cp -p ExultStudio-snapshot.dmg "$HOME/Snapshots/exult/$(date +%y-%m-%d-%H%M) ExultStudio$REVISION.dmg"
-		cp -p exult_tools_macOS.zip "$HOME/Snapshots/exult/$(date +%y-%m-%d-%H%M) exult_tools$REVISION.zip"
-		cp -p exult_shp_macos.aseprite-extension "$HOME/Snapshots/exult/$(date +%y-%m-%d-%H%M) exult_shp$REVISION.aseprite-extension"
+		# Ensure snapshot directory exists
+		mkdir -p "$HOME/Snapshots/exult" || error "Failed to create snapshots directory"
+		
+		# Copy timestamped versions and move to final locations
+		TIMESTAMP="$(date +%y-%m-%d-%H%M)"
+		cp -p Exult-snapshot.dmg "$HOME/Snapshots/exult/${TIMESTAMP} Exult$REVISION.dmg" || error "Failed to copy Exult dmg"
+		cp -p ExultStudio-snapshot.dmg "$HOME/Snapshots/exult/${TIMESTAMP} ExultStudio$REVISION.dmg" || error "Failed to copy ExultStudio dmg"
+		cp -p exult_tools_macOS.zip "$HOME/Snapshots/exult/${TIMESTAMP} exult_tools$REVISION.zip" || error "Failed to copy tools zip"
+		cp -p exult_shp_macos.aseprite-extension "$HOME/Snapshots/exult/${TIMESTAMP} exult_shp$REVISION.aseprite-extension" || error "Failed to copy aseprite extension"
 
-		mv Exult-snapshot.dmg "$HOME/Snapshots/exult/"
-		mv ExultStudio-snapshot.dmg "$HOME/Snapshots/exult/"
-		mv exult_tools_macOS.zip "$HOME/Snapshots/exult/"
-		mv exult_shp_macos.aseprite-extension "$HOME/Snapshots/exult/"
+		mv Exult-snapshot.dmg "$HOME/Snapshots/exult/" || error "Failed to move Exult snapshot"
+		mv ExultStudio-snapshot.dmg "$HOME/Snapshots/exult/" || error "Failed to move ExultStudio snapshot"
+		mv exult_tools_macOS.zip "$HOME/Snapshots/exult/" || error "Failed to move tools zip"
+		mv exult_shp_macos.aseprite-extension "$HOME/Snapshots/exult/" || error "Failed to move aseprite extension"
 
 		#upload
 		step "Uploading ..."
