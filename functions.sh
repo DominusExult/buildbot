@@ -7,7 +7,7 @@ headermain() {
 	if [ "$1" != "" ]; then
 		TARGET=$1
 		#lowercase of $TARGET
-		target="$(echo $TARGET | tr '[:upper:]' '[:lower:]')"
+		target="$(echo "$TARGET" | tr '[:upper:]' '[:lower:]')"
 		#logfile
 		LOGFILE=$HOME/.local/logs/${target}built.txt
 		#finally the header
@@ -41,7 +41,7 @@ step() {
 		echo -e "$(tput setab 2)$(tput bold)$(tput setaf 4)\t$STEPS\t$(tput sgr 0)"
 		echo
 	else
-		error header function
+		error step function
 	fi
 	
 }
@@ -49,13 +49,12 @@ step() {
 alias deploy='echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tdeployment\t$(tput sgr 0)"'
 
 #-------------compiler & flags-------------
-# I have simple prefixes for each OS X arch (ppc, i386, x86_64, arm64) in /opt/.
+# I have simple prefixes for each OS X arch (x86_64, arm64) in /opt/.
 # Even though one could use one universal prefix with all libs "lipo'ed"
 # it's easier to maintain different prefixes as they can have different 
 # problems when updating the libs.
-# For building ppc, I'm using the old Xcode 3.x stored in /opt/xcode3.
-# For 32/64bit intel, I'm just using clang that comes with current Xcode.
-# My SDK collection (10.4-15.4) is stored in /opt/SDKs
+# For 64bit intel and arm64 Apple, I'm just using clang that comes with current Xcode.
+# My SDK collection (10.4-15.5) is stored in /opt/SDKs
 
 flags() {
 	if  [ "$ARCH" = "" ] && [ "$SYSARCH" = "arm64" ]; then
@@ -65,18 +64,13 @@ flags() {
 	elif [ "$ARCH" = "" ] && [ "$SYSARCH" = "x86_64" ]; then
 		ARCH=x86_64
 		SDK=14.5
-		DEPLOYMENT=10.12
+		DEPLOYMENT=10.15
 	fi
 
 	export PKG_CONFIG_PATH=/opt/$ARCH/lib/pkgconfig
 	#export PKG_CONFIG=/opt/$SYSARCH/bin/pkg-config
 
-	if [ "$ARCH" = "i386" ]; then
-		OPTARCH='-arch i386 -m32 -msse -msse2 -O2 '
-	elif [ "$ARCH" = "ppc" ]; then
-		OPTARCH='-arch ppc -m32 -O2 '
-		export PKG_CONFIG=/opt/x86_64/bin/pkg-config
-	elif  [ "$ARCH" = "x86_64" ]; then
+	if  [ "$ARCH" = "x86_64" ]; then
 		OPTARCH='-m64 -O2 '
 	elif  [ "$ARCH" = "arm64" ]; then
 		OPTARCH='-O2 '
@@ -97,24 +91,8 @@ gcc() {
 		export LD="/usr/bin/ld"
 		export RANLIB="$HOME/code/sh/tools/ranlib"
 		export AR="$HOME/code/sh/tools/ar"
-		if [ "$1" = "legacy" ]; then
-			export PATH=/opt/$ARCH/bin/:/opt/xcode3/usr/bin:/opt/xcode3/usr/sbin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
-			export CC='/opt/xcode3/usr/bin/llvm-gcc-4.2 -arch '$ARCH
-			export CXX='/opt/xcode3/usr/bin/llvm-g++-4.2 -arch '$ARCH
-			export LD="/opt/xcode3/usr/bin/ld"
-			export RANLIB="/opt/xcode3/usr/bin/ranlib.old"
-			export AR="/opt/xcode3/usr/bin/ar"
-		elif [ "$1" = "oldgcc" ]; then
-			export PATH=/opt/$ARCH/bin/:/opt/xcode3/usr/bin:/opt/xcode3/usr/sbin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin
-			export CC='/opt/xcode3/usr/bin/gcc-4.2 -arch '$ARCH
-			export CXX='/opt/xcode3/usr/bin/g++-4.2 -arch '$ARCH
-			export LD="/opt/xcode3/usr/bin/ld"
-			export RANLIB="/opt/xcode3/usr/bin/ranlib.old"
-			export AR="/opt/xcode3/usr/bin/ar"
-		else
-			export CC='/usr/bin/clang -arch '$ARCH
-			export CXX='/usr/bin/clang++ -arch '$ARCH
-		fi
+		export CC='/usr/bin/clang -arch '$ARCH
+		export CXX='/usr/bin/clang++ -arch '$ARCH
 	else
 		error gcc function
 	fi
@@ -123,24 +101,24 @@ gcc() {
 #-------------dylibbundle and codesign for the libs-------------
 dylibbundle() {
 	#fix path so dylibbundler is in it and uses the build system install_name_tool
-	if [ $SYSARCH != $ARCH ]; then
+	if [ "$SYSARCH" != "$ARCH" ]; then
 		PATH="/opt/$SYSARCH/bin/:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/gtk3/bin"
 		export PATH
 	fi
 	resources=$bundle_name/Contents/Resources/lib_
 	dylibbundler -b -ns -od -of -cd \
-				-x $program.$ARCH \
-				-d $resources$ARCH/ \
-				-p @executable_path/../Resources/lib_$ARCH/ \
+				-x "$program"."$ARCH" \
+				-d "$resources""$ARCH"/ \
+				-p @executable_path/../Resources/lib_"$ARCH"/ \
 				-i /usr/lib/ \
-				-s -/opt/$ARCH/lib \
+				-s -/opt/"$ARCH"/lib \
 				&> /dev/null
 }
 codesign_lib() {
 	codesign \
 			--options runtime \
 			-f -s "Developer ID Application" \
-			$1/*.dylib \
+			"$1"/*.dylib \
 			&> /dev/null
 }
 
@@ -158,14 +136,17 @@ notar() {
 alias autogen='./autogen.sh > /dev/null 2>&1'
 alias autore='autoreconf -i "$SOURCE_PATH"'
 
-alias makes="make clean  > /dev/null ; make -j$(sysctl hw.ncpu | awk '{print $2}') -s AR="$HOME/code/sh/tools/ar" > /dev/null || error $HEADER make"
+makes() {
+	make clean > /dev/null
+	make -j"$(sysctl hw.ncpu | awk '{print $2}')" -s AR="$HOME/code/sh/tools/ar" > /dev/null || error "$HEADER" make
+}
 
 alias lockfile='rm -f $HOME/.local/"$TARGET"build1.lockfile'
 
 # "$SOURCE_PATH" is the path to where ./configure is found
 config() {
 	if [ "$SOURCE_PATH" = "" ]; then
-		$SOURCE_PATH="."
+		SOURCE_PATH="."
 	fi
 	
 	if [ "$CONF_OPT" != "" ]; then
@@ -175,20 +156,17 @@ config() {
 		c2=$CONF_ARGS
 	fi
 		
-	if [ "$ARCH" = "ppc" ]; then
-		"$SOURCE_PATH"/configure --host=powerpc-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
-
-	elif [ "$ARCH" = "i386" ]; then
-		"$SOURCE_PATH"/configure --host=i386-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
-
-	elif [[ "$ARCH" = "arm64" ]] && [[ "$SYSARCH" != "arm64" ]]; then
-		"$SOURCE_PATH"/configure --host=arm-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
+	if [[ "$ARCH" = "arm64" ]] && [[ "$SYSARCH" != "arm64" ]]; then
+		# shellcheck disable=SC2086
+		"$SOURCE_PATH"/configure --host=arm-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error "$ARCH" configure
 
 	elif [[ "$ARCH" = "x86_64" ]] && [[ "$SYSARCH" != "x86_64" ]]; then
-		"$SOURCE_PATH"/configure --host=x86_64-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
+		# shellcheck disable=SC2086
+		"$SOURCE_PATH"/configure --host=x86_64-apple-darwin ${=CONF_OPT} ${=CONF_ARGS} || error "$ARCH" configure
 
-	else [ "$?" != "0" ]
-		"$SOURCE_PATH"/configure ${=CONF_OPT} ${=CONF_ARGS} || error $ARCH configure
+	else
+		# shellcheck disable=SC2086
+		"$SOURCE_PATH"/configure ${=CONF_OPT} ${=CONF_ARGS} || error "$ARCH" configure
 	fi
 }
 
@@ -203,7 +181,8 @@ stripp() {
 	if [ "$2" = "-p" ] && [ -n "$3" ]; then
 		output_path="$3"
 		# Get just the filename without the directory path
-		local basename=$(basename "$input_file")
+		local basename
+		basename=$(basename "$input_file")
 
 		if [ "$ARCH" != "" ]; then
 			output_file="${output_path}${basename}.$ARCH"
@@ -296,15 +275,21 @@ lipo_build() {
 	# If we have files to process, run lipo for each file
 	if [[ ${#file_array[@]} -gt 0 ]]; then
 		for file in "${file_array[@]}"; do
-			#echo "Processing $file with architectures: ${(j: :)archs}"
+			#echo "DEBUG: Processing $file with architectures: ${archs[*]}"
 			# Build architecture arguments for this file
 			lipos=""
 			for arch in "${archs[@]}"; do
-				lipos="$lipos -arch $arch $file.$arch"
+				local arch_file="$file.$arch"
+				if [[ -f "$arch_file" ]]; then
+					lipos="$lipos -arch $arch $arch_file"
+				else
+					echo "DEBUG: WARNING: Architecture file does not exist: $arch_file"
+				fi
 			done
 			# Run lipo command
 			if [ -n "$lipos" ]; then
-				lipo -create ${=lipos} -output $file || error $file lipo
+				# shellcheck disable=SC2086
+				lipo -create ${=lipos} -output "$file" || error "$file" lipo
 			else
 				error "No architecture inputs provided for $file" lipo_build
 			fi
@@ -324,7 +309,7 @@ ctrl_c() {
 }
 
 finish() {
-	rm -f "$NOTARIZE_APP_LOG" "$NOTARIZE_INFO_LOG" $HOME/.local/"$TARGET"build1.lockfile
+	rm -f "$NOTARIZE_APP_LOG" "$NOTARIZE_INFO_LOG" "$HOME"/.local/"$TARGET"build1.lockfile
 }
 trap finish EXIT
 
@@ -339,7 +324,7 @@ mailresult() {
 		# if the name of the result mail sender should be the the same as the logged in $USER, 
 		# use "mail", if you need to use a different sender name use "sendmail"
 		
-		mail -Es $TARGET" build $1" $ERRORMAIL < $LOGFILE
+		mail -Es "$TARGET"" build $1" "$ERRORMAIL" < "$LOGFILE"
 		#(echo "Subject: iMac - "$TARGET" build "$1""; cat $LOGFILE | uuencode $LOGFILE) | sendmail -F "Buildbot" -t $ERRORMAIL
 	fi
 }
@@ -358,19 +343,23 @@ error () {
 		echo -e "$(tput setab 1)$(tput bold)$(tput setaf 7)\t\t***Error***\t\t\t$(tput sgr 0)"
 		echo
 		lockfile
-		mailresult failure
+		if [ "$BUILDBOT" = "1" ]; then
+			mailresult failure
+		fi
 		exit 1
 	fi
 }
 
 success () {
 	lockfile
-	mailresult succeded
+	if [ "$BUILDBOT" = "1" ]; then
+		mailresult succeeded
+	fi
 	echo -e "$(tput setab 4)$(tput bold)$(tput setaf 3)\tBUILD COMPLETE\t\t$(tput sgr 0)"
 }
 
 pipestatus() {
-	local S=("${pipestatus[@]}")
+	local S=("${PIPESTATUS[@]}")
 	if test -n "$*"
 	then test "$*" = "${S[*]}"
 	else ! [[ "${S[*]}" =~ [^0\ ] ]]
@@ -378,28 +367,37 @@ pipestatus() {
 }
 
 teelog() {
-	tee $1 $LOGFILE
+	if [ "$1" = "-a" ]; then
+		# Append mode: teelog -a (append to LOGFILE)
+		tee -a "$LOGFILE"
+	elif [ -n "$1" ]; then
+		# File specified: teelog filename (write to specified file)
+		tee "$1"
+	else
+		# No arguments: just log to LOGFILE (overwrite)
+		tee "$LOGFILE"
+	fi
 }
 
 #-------------debug-------------
 echoall() {
-	echo "ARCH="$ARCH
-	echo "SDK="$SDK
-	echo "OPT="$OPT
-	echo "MACOSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET
-	echo "PATH="$PATH
-	echo "CC="$CC
-	echo "CXX="$CXX
-	echo "CPPFLAGS="$CPPFLAGS
-	echo "CFLAGS="$CFLAGS
-	echo "CXXFLAGS="$CXXFLAGS
-	echo "LDFLAGS="$LDFLAGS
-	echo "PKG_CONFIG_PATH="$PKG_CONFIG_PATH
-	echo "PKG_CONFIG="$PKG_CONFIG
-	echo "LD="$LD
-	echo "AR="$AR
-	echo "RANLIB="$RANLIB
-	echo "CONF_OPT="$CONF_OPT 
-	echo "CONF_ARGS="$CONF_ARGS
-	echo "LIPO ARGS="$lipos
+	echo "ARCH=""$ARCH"
+	echo "SDK=""$SDK"
+	echo "OPT=""$OPT"
+	echo "MACOSX_DEPLOYMENT_TARGET=""$MACOSX_DEPLOYMENT_TARGET"
+	echo "PATH=""$PATH"
+	echo "CC=""$CC"
+	echo "CXX=""$CXX"
+	echo "CPPFLAGS=""$CPPFLAGS"
+	echo "CFLAGS=""$CFLAGS"
+	echo "CXXFLAGS=""$CXXFLAGS"
+	echo "LDFLAGS=""$LDFLAGS"
+	echo "PKG_CONFIG_PATH=""$PKG_CONFIG_PATH"
+	echo "PKG_CONFIG=""$PKG_CONFIG"
+	echo "LD=""$LD"
+	echo "AR=""$AR"
+	echo "RANLIB=""$RANLIB"
+	echo "CONF_OPT=""$CONF_OPT" 
+	echo "CONF_ARGS=""$CONF_ARGS"
+	echo "LIPO ARGS=""$lipos"
 }
