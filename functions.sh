@@ -416,6 +416,13 @@ pipestatus() {
 }
 
 teelog() {
+	# Ensure LOGFILE is set
+	if [ -z "$LOGFILE" ]; then
+		# If no LOGFILE is set, just pass through to stdout/stderr
+		cat
+		return
+	fi
+	
 	if [ "$1" = "-a" ]; then
 		# Append mode: teelog -a (append to LOGFILE)
 		tee -a "$LOGFILE"

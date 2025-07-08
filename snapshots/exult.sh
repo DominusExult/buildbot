@@ -10,7 +10,7 @@ gtk3() {
 }
 
 tools_build() {
-	mkdir -p ./toolspack/data
+	mkdir -p ./toolspack/data || error "Failed to create toolspack/data directory"
 	stripp_all "${tools_binaries[@]}" -p ./toolspack/
 	cp ./tools/smooth/libsmooth_randomize.so ./toolspack/libsmooth_randomize.so."$ARCH"
 	cp ./tools/smooth/libsmooth_smooth.so ./toolspack/libsmooth_smooth.so."$ARCH"
@@ -39,7 +39,7 @@ common_build() {
 	fi
 	gtk3
 	autore
-	build 2>&1 | teelog ; pipestatus || return 1
+	build 2>&1 | teelog -a ; pipestatus || return 1
 	stripp_all "$program"
 	rm -f "$program2"."$ARCH"
 	# do not strip exult_studio - it will no longer work correctly

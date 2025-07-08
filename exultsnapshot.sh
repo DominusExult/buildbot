@@ -57,8 +57,8 @@ rm -rf "$BUILDDIR"
 mkdir -p "$BUILDDIR"
 cd "$BUILDDIR" || exit
 if [ "$BUILDBOT" = "1" ]; then
-	/usr/bin/git -C "$SOURCE_PATH" stash  2> >(teelog >&2) || error Git stash
-	/usr/bin/git -C "$SOURCE_PATH" pull --rebase=true  2> >(teelog >&2) || error Git pull
+	/usr/bin/git -C "$SOURCE_PATH" stash  2> >(teelog -a >&2) || error "Git stash failed"
+	/usr/bin/git -C "$SOURCE_PATH" pull --rebase=true  2> >(teelog -a >&2) || error "Git pull failed"
 fi
 
 #configure options for all arches
@@ -74,10 +74,10 @@ export EXPACK=/opt/exult/expack
 export HEAD2DATA=/opt/exult/head2data
 
 #x86_64
-build_x86_64
+build_x86_64 2>&1 | teelog ; pipestatus || return 1
 
 #arm64
-build_arm64
+build_arm64 2>&1 | teelog -a ; pipestatus || return 1
 
 #deploy
 deploy
@@ -161,12 +161,10 @@ deploy
 		#upload
 		step "Uploading ..."
 		sf_upload
+
+		# Clean up
+		step "Cleaning up ..."
+		make distclean  > /dev/null
 	fi
 } 2>&1 | teelog -a ; pipestatus || return
-
-#clean
-if [ "$BUILDBOT" = "1" ]; then
-	step "Cleaning up ..."
-	make distclean  > /dev/null
-fi
-success
+success  2>&1 | teelog -a ; pipestatus || return
